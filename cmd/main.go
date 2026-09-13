@@ -19,9 +19,16 @@ func main() {
 	// 2. Koneksi ke PostgreSQL + AutoMigrate
 	database.Connect()
 
-	// 3. Dependency injection (manual, tanpa DI framework)
+	// 3. Seed default roles & dependency injection
+	roleRepo := repository.NewRoleRepository(database.DB)
+	if err := roleRepo.SeedDefaultRoles(); err != nil {
+		log.Fatalf("[seed] Failed to seed default roles: %v", err)
+	}
+
 	userRepo := repository.NewUserRepository(database.DB)
-	authSvc := service.NewAuthService(userRepo)
+	authSvc := service.NewAuthService(userRepo, roleRepo)
+	userSvc := service.NewUserService(userRepo, roleRepo)
+	roleSvc := service.NewRoleService(roleRepo)
 
 	// 4. Setup Gin
 	if config.App.AppEnv == "production" {
@@ -30,9 +37,9 @@ func main() {
 	r := gin.Default()
 
 	// 5. Daftarkan semua route
-	routes.Setup(r, authSvc)
+	routes.Setup(r, authSvc, userSvc, roleSvc)
 
-	// 6.  server
+	// 6. Jalankan server
 	addr := ":" + config.App.AppPort
 	log.Printf("[server] Starting on http://localhost%s", addr)
 	if err := r.Run(addr); err != nil {
