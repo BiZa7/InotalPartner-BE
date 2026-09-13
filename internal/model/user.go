@@ -6,22 +6,12 @@ import (
 	"gorm.io/gorm"
 )
 
-
 type AuthProvider string
 
 const (
-	ProviderLocal  AuthProvider = "local"  //email/password
-	ProviderGoogle AuthProvider = "google" //google login
+	ProviderLocal  AuthProvider = "local"  // email/password
+	ProviderGoogle AuthProvider = "google" // google login
 )
-
-
-type UserRole string
-
-const (
-	RoleAdmin   UserRole = "admin"
-	RolePartner UserRole = "partner"
-)
-
 
 type User struct {
 	ID        uint           `gorm:"primaryKey;autoIncrement"           json:"id"`
@@ -41,11 +31,17 @@ type User struct {
 	PasswordHash *string `gorm:"type:varchar(255)"                  json:"-"`
 
 	// Profil
-	AvatarURL string   `gorm:"type:text"                          json:"avatar_url"`
-	Company   string   `gorm:"type:varchar(200)"                  json:"company"`
-	Role      UserRole `gorm:"type:varchar(20);not null;default:'partner'" json:"role"`
+	AvatarURL string `gorm:"type:text"                          json:"avatar_url"`
+	Company   string `gorm:"type:varchar(200)"                  json:"company"`
+
+	// Role (FK ke roles.id)
+	RoleID uint `gorm:"not null"                              json:"role_id"`
+	Role   Role `gorm:"foreignKey:RoleID"                     json:"role"`
+
+	// Legacy Role (kompatibilitas dengan DB bersama)
+	LegacyRole string `gorm:"column:role;type:varchar(50)" json:"legacy_role,omitempty"`
 
 	// Status
-	IsVerified bool       `gorm:"default:false"                      json:"is_verified"`
+	IsVerified  bool       `gorm:"default:false"                      json:"is_verified"`
 	LastLoginAt *time.Time `                                          json:"last_login_at"`
 }

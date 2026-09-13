@@ -19,6 +19,40 @@ func NewAuthHandler(authSvc *service.AuthService) *AuthHandler {
 	return &AuthHandler{authSvc: authSvc}
 }
 
+// Setup — First-time setup, buat super_admin pertama
+// POST /api/auth/setup
+// Hanya bisa dipakai saat database masih kosong (belum ada user)
+func (h *AuthHandler) Setup(c *gin.Context) {
+	var req service.SetupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Data tidak valid",
+			"errors":  err.Error(),
+		})
+		return
+	}
+
+	resp, err := h.authSvc.Setup(req)
+	if err != nil {
+		status := http.StatusBadRequest
+		if err.Error() == "setup sudah pernah dilakukan, endpoint ini tidak tersedia" {
+			status = http.StatusForbidden
+		}
+		c.JSON(status, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"success": true,
+		"message": "Super admin berhasil dibuat! Simpan kredensial ini dengan aman.",
+		"data":    resp,
+	})
+}
+
 // Register
 // POST /api/auth/register
 func (h *AuthHandler) Register(c *gin.Context) {

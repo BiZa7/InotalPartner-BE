@@ -28,6 +28,7 @@ func Connect() {
 
 	// AutoMigrate: buat/update tabel otomatis sesuai model
 	if err := db.AutoMigrate(
+		&model.Role{},
 		&model.User{},
 	); err != nil {
 		log.Fatalf("[database] AutoMigrate failed: %v", err)
