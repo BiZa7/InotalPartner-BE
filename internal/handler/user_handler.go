@@ -100,6 +100,8 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
+	
+
 	var req service.UpdateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -140,33 +142,40 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 
 // DeleteUser — DELETE /api/users/:id
 func (h *UserHandler) DeleteUser(c *gin.Context) {
-	id, err := parseUintParam(c, "id")
-	if err != nil {
-		return
-	}
+    id, err := parseUintParam(c, "id")
+    if err != nil {
+        return
+    }
 
-	requestorID, _ := c.Get("user_id")
-	myID := requestorID.(uint)
+    requestorID, _ := c.Get("user_id")
+    myID := requestorID.(uint)
 
-	if err := h.userSvc.DeleteUser(id, myID); err != nil {
-		status := http.StatusInternalServerError
-		switch err.Error() {
-		case "user tidak ditemukan":
-			status = http.StatusNotFound
-		case "tidak bisa menghapus akun sendiri":
-			status = http.StatusBadRequest
-		}
-		c.JSON(status, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
-	}
+    // AMBIL ROLE DARI CONTEXT
+    requestorRole, _ := c.Get("user_role")
+    myRole := requestorRole.(string)
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "User berhasil dihapus",
-	})
+    // TAMBAHKAN myRole SEBAGAI PARAMETER KETIGA
+    if err := h.userSvc.DeleteUser(id, myID, myRole); err != nil {
+        status := http.StatusInternalServerError
+        switch err.Error() {
+        case "user tidak ditemukan":
+            status = http.StatusNotFound
+        case "tidak bisa menghapus akun sendiri":
+            status = http.StatusBadRequest
+        case "tidak punya izin menghapus akun super_admin": // Handle error role
+            status = http.StatusForbidden
+        }
+        c.JSON(status, gin.H{
+            "success": false,
+            "message": err.Error(),
+        })
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{
+        "success": true,
+        "message": "User berhasil dihapus",
+    })
 }
 
 // ChangePassword — PATCH /api/users/me/password
@@ -204,37 +213,46 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 
 // AdminResetPassword — PATCH /api/users/:id/password
 func (h *UserHandler) AdminResetPassword(c *gin.Context) {
-	id, err := parseUintParam(c, "id")
-	if err != nil {
-		return
-	}
+    id, err := parseUintParam(c, "id")
+    if err != nil {
+        return
+    }
 
-	var req service.AdminChangePasswordRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Data tidak valid",
-			"errors":  err.Error(),
-		})
-		return
-	}
+    var req service.AdminChangePasswordRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{
+            "success": false,
+            "message": "Data tidak valid",
+            "errors":  err.Error(),
+        })
+        return
+    }
 
-	if err := h.userSvc.AdminResetPassword(id, req); err != nil {
-		status := http.StatusInternalServerError
-		if err.Error() == "user tidak ditemukan" {
-			status = http.StatusNotFound
-		}
-		c.JSON(status, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
-	}
+    // AMBIL ROLE DARI CONTEXT
+    requestorRole, _ := c.Get("user_role")
+    myRole := requestorRole.(string)
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Password user berhasil direset",
-	})
+    // TAMBAHKAN myRole SEBAGAI PARAMETER KETIGA
+    if err := h.userSvc.AdminResetPassword(id, req, myRole); err != nil {
+        status := http.StatusInternalServerError
+        switch err.Error() {
+        case "user tidak ditemukan":
+            status = http.StatusNotFound
+        case "tidak punya izin mereset password akun super_admin": // Handle error role
+            status = http.StatusForbidden
+        }
+        
+        c.JSON(status, gin.H{
+            "success": false,
+            "message": err.Error(),
+        })
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{
+        "success": true,
+        "message": "Password user berhasil direset",
+    })
 }
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
