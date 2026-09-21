@@ -30,6 +30,15 @@ func main() {
 	userSvc := service.NewUserService(userRepo, roleRepo)
 	roleSvc := service.NewRoleService(roleRepo)
 
+	categoryRepo := repository.NewCategoryRepository(database.DB)
+	categorySvc := service.NewCategoryService(categoryRepo)
+
+	tagRepo := repository.NewTagRepository(database.DB)
+	tagSvc := service.NewTagService(tagRepo)
+
+	articleRepo := repository.NewArticleRepository(database.DB)
+	articleSvc := service.NewArticleService(articleRepo, categoryRepo, tagRepo)
+
 	// 4. Setup Gin
 	if config.App.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -37,7 +46,7 @@ func main() {
 	r := gin.Default()
 
 	// 5. Daftarkan semua route
-	routes.Setup(r, authSvc, userSvc, roleSvc)
+	routes.Setup(r, authSvc, userSvc, roleSvc, categorySvc, tagSvc, articleSvc)
 
 	// 6. Jalankan server
 	addr := ":" + config.App.AppPort

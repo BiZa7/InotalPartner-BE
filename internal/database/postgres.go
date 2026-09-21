@@ -30,6 +30,9 @@ func Connect() {
 	if err := db.AutoMigrate(
 		&model.Role{},
 		&model.User{},
+		&model.Category{},
+		&model.Tag{},
+		&model.Article{},
 	); err != nil {
 		log.Fatalf("[database] AutoMigrate failed: %v", err)
 	}

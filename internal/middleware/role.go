@@ -49,3 +49,13 @@ func SuperAdminOnly() gin.HandlerFunc {
 func AdminOrAbove() gin.HandlerFunc {
 	return RequireRole("super_admin", "admin")
 }
+
+// OperatorOnly mengizinkan hanya operator
+func OperatorOnly() gin.HandlerFunc {
+	return RequireRole("operator")
+}
+
+// DenyAll melarang akses untuk semua role
+func DenyAll() gin.HandlerFunc {
+	return RequireRole()
+}
