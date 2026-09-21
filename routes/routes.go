@@ -10,7 +10,15 @@ import (
 	"inotal-be/internal/service"
 )
 
-func Setup(r *gin.Engine, authSvc *service.AuthService, userSvc *service.UserService, roleSvc *service.RoleService) {
+func Setup(
+	r *gin.Engine,
+	authSvc *service.AuthService,
+	userSvc *service.UserService,
+	roleSvc *service.RoleService,
+	categorySvc *service.CategoryService,
+	tagSvc *service.TagService,
+	articleSvc *service.ArticleService,
+) {
 	// CORS
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{config.App.FrontendURL},
@@ -29,6 +37,9 @@ func Setup(r *gin.Engine, authSvc *service.AuthService, userSvc *service.UserSer
 	authHandler := handler.NewAuthHandler(authSvc)
 	userHandler := handler.NewUserHandler(userSvc)
 	roleHandler := handler.NewRoleHandler(roleSvc)
+	categoryHandler := handler.NewCategoryHandler(categorySvc)
+	tagHandler := handler.NewTagHandler(tagSvc)
+	articleHandler := handler.NewArticleHandler(articleSvc)
 
 	// API v1
 	api := r.Group("/api")
@@ -37,12 +48,11 @@ func Setup(r *gin.Engine, authSvc *service.AuthService, userSvc *service.UserSer
 		auth := api.Group("/auth")
 		{
 			// Public routes
-			auth.POST("/setup", authHandler.Setup)    // ← first-time setup (DB kosong)
+			auth.POST("/setup", authHandler.Setup) // ← first-time setup (DB kosong)
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
 			auth.GET("/google", authHandler.GoogleLogin)
 			auth.GET("/google/callback", authHandler.GoogleCallback)
-
 
 			// Protected routes (hanya perlu login)
 			protected := auth.Group("")
@@ -84,6 +94,60 @@ func Setup(r *gin.Engine, authSvc *service.AuthService, userSvc *service.UserSer
 			roles.GET("/:id", roleHandler.GetRole)       // GET    /api/roles/:id
 			roles.PUT("/:id", roleHandler.UpdateRole)    // PUT    /api/roles/:id
 			roles.DELETE("/:id", roleHandler.DeleteRole) // DELETE /api/roles/:id
+		}
+
+		// ── Categories ──────────────────────────────────────────────────────
+		categories := api.Group("/categories")
+		categories.Use(middleware.AuthMiddleware(authSvc))
+		{
+			operatorCategories := categories.Group("")
+			operatorCategories.Use(middleware.OperatorOnly())
+			{
+				operatorCategories.GET("", categoryHandler.GetCategories)      // GET    /api/categories
+				operatorCategories.POST("", categoryHandler.CreateCategory)    // POST   /api/categories
+				operatorCategories.GET("/:id", categoryHandler.GetCategory)    // GET    /api/categories/:id
+				operatorCategories.PUT("/:id", categoryHandler.UpdateCategory) // PUT    /api/categories/:id
+			}
+
+			// DELETE category ❌ (Operator, Admin, SuperAdmin, Guest tidak punya akses delete)
+			categories.DELETE("/:id", middleware.DenyAll(), categoryHandler.DeleteCategory)
+		}
+
+		// ── Tags ────────────────────────────────────────────────────────────
+		tags := api.Group("/tags")
+		tags.Use(middleware.AuthMiddleware(authSvc))
+		{
+			operatorTags := tags.Group("")
+			operatorTags.Use(middleware.OperatorOnly())
+			{
+				operatorTags.GET("", tagHandler.GetTags)       // GET    /api/tags
+				operatorTags.POST("", tagHandler.CreateTag)    // POST   /api/tags
+				operatorTags.GET("/:id", tagHandler.GetTag)    // GET    /api/tags/:id
+				operatorTags.PUT("/:id", tagHandler.UpdateTag) // PUT    /api/tags/:id
+			}
+
+			// DELETE tag ❌ (Operator, Admin, SuperAdmin, Guest tidak punya akses delete)
+			tags.DELETE("/:id", middleware.DenyAll(), tagHandler.DeleteTag)
+		}
+
+		// ── Articles ────────────────────────────────────────────────────────
+		articles := api.Group("/articles")
+		articles.Use(middleware.AuthMiddleware(authSvc))
+		{
+			articles.GET("", middleware.RequireRole("operator", "admin", "super_admin"), articleHandler.GetArticles)    // GET  /api/articles
+			articles.POST("", middleware.OperatorOnly(), articleHandler.CreateArticle)                                  // POST /api/articles (only Operator)
+			articles.GET("/:id", middleware.RequireRole("operator", "admin", "super_admin"), articleHandler.GetArticle) // GET  /api/articles/:id
+			articles.PUT("/:id", middleware.OperatorOnly(), articleHandler.UpdateArticle)                               // PUT  /api/articles/:id (only Operator)
+			articles.POST("/:id/publish", middleware.AdminOrAbove(), articleHandler.PublishArticle)                     // POST /api/articles/:id/publish (only Admin & Super Admin)
+			articles.POST("/:id/takedown", middleware.AdminOrAbove(), articleHandler.TakedownArticle)                   // POST /api/articles/:id/takedown (only Admin & Super Admin)
+		}
+
+		// ── Public Articles (No Auth Required) ──────────────────────────────
+		publicArticleHandler := handler.NewPublicArticleHandler(articleSvc)
+		public := api.Group("/public")
+		{
+			public.GET("/articles", publicArticleHandler.GetPublicArticles)            // GET /api/public/articles
+			public.GET("/articles/:slug", publicArticleHandler.GetPublicArticleBySlug) // GET /api/public/articles/:slug
 		}
 	}
 }
