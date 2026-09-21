@@ -12,10 +12,20 @@ const (
 	ArticleStatusTakenDown ArticleStatus = "taken_down"
 )
 
+type PostType string
+
+const (
+	PostTypeNews  PostType = "news"
+	PostTypeEvent PostType = "event"
+)
+
 type Article struct {
 	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
 	CreatedAt time.Time `                                json:"created_at"`
 	UpdatedAt time.Time `                                json:"updated_at"`
+
+	// Post Type
+	PostType PostType `gorm:"type:varchar(20);not null;default:'news'" json:"post_type"`
 
 	// Content
 	Title        string `gorm:"type:varchar(255);not null"         json:"title"`
@@ -23,6 +33,11 @@ type Article struct {
 	Content      string `gorm:"type:text;not null"                 json:"content"`
 	Excerpt      string `gorm:"type:text"                          json:"excerpt,omitempty"`
 	ThumbnailURL string `gorm:"type:text"                          json:"thumbnail_url,omitempty"`
+
+	// Event Details (Nullable, only used for post_type = event)
+	EventDate     *string `gorm:"type:date" json:"event_date,omitempty"`
+	EventTime     *string `gorm:"type:time" json:"event_time,omitempty"`
+	EventLocation *string `gorm:"type:text" json:"event_location,omitempty"`
 
 	// Category Relation (1 Category -> N Articles)
 	CategoryID uint     `gorm:"not null;index"                                                    json:"category_id"`
@@ -42,3 +57,4 @@ type Article struct {
 	// Tags Relation (Many-to-Many via article_tags)
 	Tags []Tag `gorm:"many2many:article_tags;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"tags,omitempty"`
 }
+
