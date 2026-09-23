@@ -13,21 +13,31 @@ import (
 // ─── DTOs ─────────────────────────────────────────────────────────────────────
 
 type CreateArticleRequest struct {
-	Title        string `json:"title" binding:"required,min=1,max=255"`
-	Content      string `json:"content" binding:"required"`
-	CategoryID   uint   `json:"category_id" binding:"required"`
-	TagIDs       []uint `json:"tag_ids"`
-	Excerpt      string `json:"excerpt"`
-	ThumbnailURL string `json:"thumbnail_url"`
+	Title         string  `json:"title" binding:"required,min=1,max=255"`
+	Content       string  `json:"content" binding:"required"`
+	CategoryIDs   []uint  `json:"category_ids"`
+	CategoryID    uint    `json:"category_id"`
+	TagIDs        []uint  `json:"tag_ids"`
+	Excerpt       string  `json:"excerpt"`
+	ThumbnailURL  string  `json:"thumbnail_url"`
+	PostType      string  `json:"post_type"`
+	EventDate     *string `json:"event_date"`
+	EventTime     *string `json:"event_time"`
+	EventLocation *string `json:"event_location"`
 }
 
 type UpdateArticleRequest struct {
-	Title        string  `json:"title" binding:"omitempty,min=1,max=255"`
-	Content      string  `json:"content"`
-	CategoryID   uint    `json:"category_id"`
-	TagIDs       *[]uint `json:"tag_ids"`
-	Excerpt      string  `json:"excerpt"`
-	ThumbnailURL string  `json:"thumbnail_url"`
+	Title         string   `json:"title" binding:"omitempty,min=1,max=255"`
+	Content       string   `json:"content"`
+	CategoryIDs   *[]uint  `json:"category_ids"`
+	CategoryID    uint     `json:"category_id"`
+	TagIDs        *[]uint  `json:"tag_ids"`
+	Excerpt       string   `json:"excerpt"`
+	ThumbnailURL  string   `json:"thumbnail_url"`
+	PostType      string   `json:"post_type"`
+	EventDate     *string  `json:"event_date"`
+	EventTime     *string  `json:"event_time"`
+	EventLocation *string  `json:"event_location"`
 }
 
 type ArticleListResponse struct {
@@ -127,17 +137,41 @@ func (s *ArticleService) CreateArticle(authorID uint, req CreateArticleRequest) 
 		return nil, errors.New("konten artikel tidak boleh kosong")
 	}
 
-	if req.CategoryID == 0 {
-		return nil, errors.New("kategori wajib dipilih")
-	}
+	// Validasi category_ids / category_id
+	var categories []model.Category
+	var legacyCategoryID uint
 
-	// Validasi category exists
-	category, err := s.categoryRepo.FindByID(req.CategoryID)
-	if err != nil {
-		return nil, fmt.Errorf("database error saat validasi kategori: %w", err)
-	}
-	if category == nil {
-		return nil, errors.New("kategori tidak ditemukan")
+	if len(req.CategoryIDs) > 0 {
+		uniqueCategoryIDs := make([]uint, 0, len(req.CategoryIDs))
+		seen := make(map[uint]bool)
+		for _, cid := range req.CategoryIDs {
+			if !seen[cid] {
+				seen[cid] = true
+				uniqueCategoryIDs = append(uniqueCategoryIDs, cid)
+			}
+		}
+
+		foundCategories, err := s.categoryRepo.FindByIDs(uniqueCategoryIDs)
+		if err != nil {
+			return nil, fmt.Errorf("database error saat validasi kategori: %w", err)
+		}
+		if len(foundCategories) != len(uniqueCategoryIDs) {
+			return nil, errors.New("satu atau lebih kategori tidak ditemukan")
+		}
+		categories = foundCategories
+		if len(categories) > 0 {
+			legacyCategoryID = categories[0].ID
+		}
+	} else if req.CategoryID != 0 {
+		category, err := s.categoryRepo.FindByID(req.CategoryID)
+		if err != nil {
+			return nil, fmt.Errorf("database error saat validasi kategori: %w", err)
+		}
+		if category == nil {
+			return nil, errors.New("kategori tidak ditemukan")
+		}
+		categories = []model.Category{*category}
+		legacyCategoryID = req.CategoryID
 	}
 
 	// Validasi tag_ids
@@ -176,18 +210,33 @@ func (s *ArticleService) CreateArticle(authorID uint, req CreateArticleRequest) 
 		return nil, err
 	}
 
+	// Tentukan PostType (default: news jika tidak dikirim / tidak valid)
+	postType := resolvePostType(req.PostType)
+
 	article := &model.Article{
 		Title:        title,
 		Slug:         slug,
 		Content:      req.Content,
 		Excerpt:      strings.TrimSpace(req.Excerpt),
 		ThumbnailURL: strings.TrimSpace(req.ThumbnailURL),
-		CategoryID:   req.CategoryID,
+		CategoryID:   legacyCategoryID,
 		AuthorID:     authorID,
 		Status:       model.ArticleStatusDraft,
+		PostType:     postType,
 	}
 
-	if err := s.articleRepo.Create(article, tags); err != nil {
+	// Set Event Details hanya jika post_type = event
+	if postType == model.PostTypeEvent {
+		article.EventDate = req.EventDate
+		article.EventTime = normalizeEventTime(req.EventTime)
+		article.EventLocation = req.EventLocation
+	} else {
+		article.EventDate = nil
+		article.EventTime = nil
+		article.EventLocation = nil
+	}
+
+	if err := s.articleRepo.Create(article, categories, tags); err != nil {
 		return nil, fmt.Errorf("gagal membuat artikel: %w", err)
 	}
 
@@ -246,8 +295,40 @@ func (s *ArticleService) UpdateArticle(id uint, authorID uint, req UpdateArticle
 		article.ThumbnailURL = strings.TrimSpace(req.ThumbnailURL)
 	}
 
-	// Validasi dan update Category jika dikirim
-	if req.CategoryID != 0 && req.CategoryID != article.CategoryID {
+	// Validasi dan update Categories jika dikirim
+	var categories []model.Category
+	updateCategories := false
+
+	if req.CategoryIDs != nil {
+		updateCategories = true
+		catIDs := *req.CategoryIDs
+		if len(catIDs) > 0 {
+			uniqueCatIDs := make([]uint, 0, len(catIDs))
+			seen := make(map[uint]bool)
+			for _, cid := range catIDs {
+				if !seen[cid] {
+					seen[cid] = true
+					uniqueCatIDs = append(uniqueCatIDs, cid)
+				}
+			}
+
+			foundCategories, err := s.categoryRepo.FindByIDs(uniqueCatIDs)
+			if err != nil {
+				return nil, fmt.Errorf("database error saat validasi kategori: %w", err)
+			}
+			if len(foundCategories) != len(uniqueCatIDs) {
+				return nil, errors.New("satu atau lebih kategori tidak ditemukan")
+			}
+			categories = foundCategories
+			if len(categories) > 0 {
+				article.CategoryID = categories[0].ID
+			}
+		} else {
+			categories = []model.Category{}
+			article.CategoryID = 0
+		}
+	} else if req.CategoryID != 0 {
+		updateCategories = true
 		category, err := s.categoryRepo.FindByID(req.CategoryID)
 		if err != nil {
 			return nil, fmt.Errorf("database error saat validasi kategori: %w", err)
@@ -255,6 +336,7 @@ func (s *ArticleService) UpdateArticle(id uint, authorID uint, req UpdateArticle
 		if category == nil {
 			return nil, errors.New("kategori tidak ditemukan")
 		}
+		categories = []model.Category{*category}
 		article.CategoryID = req.CategoryID
 	}
 
@@ -284,8 +366,25 @@ func (s *ArticleService) UpdateArticle(id uint, authorID uint, req UpdateArticle
 		}
 	}
 
+	// Update PostType jika dikirim
+	if req.PostType != "" {
+		article.PostType = resolvePostType(req.PostType)
+	}
+
+	// Update Event Details berdasarkan PostType final
+	if article.PostType == model.PostTypeEvent {
+		article.EventDate = req.EventDate
+		article.EventTime = normalizeEventTime(req.EventTime)
+		article.EventLocation = req.EventLocation
+	} else {
+		// Jika News: clear event fields
+		article.EventDate = nil
+		article.EventTime = nil
+		article.EventLocation = nil
+	}
+
 	// Note: Status dan AuthorID tidak diubah di sini
-	if err := s.articleRepo.Update(article, tags, updateTags); err != nil {
+	if err := s.articleRepo.Update(article, categories, updateCategories, tags, updateTags); err != nil {
 		return nil, fmt.Errorf("gagal memperbarui artikel: %w", err)
 	}
 
@@ -391,4 +490,45 @@ func (s *ArticleService) GetPublishedArticleBySlug(slug string) (*model.Article,
 		return nil, errors.New("artikel tidak ditemukan")
 	}
 	return article, nil
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// resolvePostType mengkonversi string post_type dari request menjadi model.PostType.
+// Nilai valid: "news", "event", "article". Default: "news" jika kosong/tidak valid.
+func resolvePostType(raw string) model.PostType {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "event":
+		return model.PostTypeEvent
+	case "article":
+		return model.PostTypeArticle
+	default:
+		return model.PostTypeNews
+	}
+}
+
+// normalizeEventTime menormalisasi string event_time (contoh "08:01" -> "08:01:00")
+func normalizeEventTime(raw *string) *string {
+	if raw == nil {
+		return nil
+	}
+	s := strings.TrimSpace(*raw)
+	if s == "" {
+		return nil
+	}
+	if strings.Contains(s, "T") {
+		parts := strings.Split(s, "T")
+		if len(parts) > 1 {
+			s = parts[1]
+		}
+	}
+	if strings.Contains(s, "Z") {
+		s = strings.ReplaceAll(s, "Z", "")
+	}
+	if len(s) == 5 && strings.Count(s, ":") == 1 {
+		s = s + ":00"
+	} else if len(s) > 8 {
+		s = s[:8]
+	}
+	return &s
 }

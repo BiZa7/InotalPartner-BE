@@ -38,6 +38,16 @@ func (r *CategoryRepository) FindByID(id uint) (*model.Category, error) {
 	return &category, err
 }
 
+// FindByIDs mencari list kategori berdasarkan slice ID
+func (r *CategoryRepository) FindByIDs(ids []uint) ([]model.Category, error) {
+	if len(ids) == 0 {
+		return []model.Category{}, nil
+	}
+	var categories []model.Category
+	err := r.db.Where("id IN ?", ids).Find(&categories).Error
+	return categories, err
+}
+
 // FindByName mencari kategori berdasarkan nama
 func (r *CategoryRepository) FindByName(name string) (*model.Category, error) {
 	var category model.Category

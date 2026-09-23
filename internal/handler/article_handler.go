@@ -120,7 +120,7 @@ func (h *ArticleHandler) CreateArticle(c *gin.Context) {
 	if err != nil {
 		status := http.StatusInternalServerError
 		switch err.Error() {
-		case "kategori tidak ditemukan", "satu atau lebih tag tidak ditemukan", "judul artikel tidak boleh kosong", "konten artikel tidak boleh kosong", "kategori wajib dipilih", "judul artikel tidak valid untuk dijadikan slug":
+		case "kategori tidak ditemukan", "satu atau lebih kategori tidak ditemukan", "satu atau lebih tag tidak ditemukan", "judul artikel tidak boleh kosong", "konten artikel tidak boleh kosong", "kategori wajib dipilih", "judul artikel tidak valid untuk dijadikan slug":
 			status = http.StatusBadRequest
 		}
 		c.JSON(status, gin.H{
@@ -172,7 +172,7 @@ func (h *ArticleHandler) UpdateArticle(c *gin.Context) {
 			status = http.StatusNotFound
 		case "akses ditolak: bukan pemilik artikel":
 			status = http.StatusForbidden
-		case "kategori tidak ditemukan", "satu atau lebih tag tidak ditemukan", "judul artikel tidak valid untuk dijadikan slug":
+		case "kategori tidak ditemukan", "satu atau lebih kategori tidak ditemukan", "satu atau lebih tag tidak ditemukan", "judul artikel tidak valid untuk dijadikan slug":
 			status = http.StatusBadRequest
 		}
 		c.JSON(status, gin.H{

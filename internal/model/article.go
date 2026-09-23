@@ -15,8 +15,9 @@ const (
 type PostType string
 
 const (
-	PostTypeNews  PostType = "news"
-	PostTypeEvent PostType = "event"
+	PostTypeNews    PostType = "news"
+	PostTypeEvent   PostType = "event"
+	PostTypeArticle PostType = "article"
 )
 
 type Article struct {
@@ -39,9 +40,12 @@ type Article struct {
 	EventTime     *string `gorm:"type:time" json:"event_time,omitempty"`
 	EventLocation *string `gorm:"type:text" json:"event_location,omitempty"`
 
-	// Category Relation (1 Category -> N Articles)
-	CategoryID uint     `gorm:"not null;index"                                                    json:"category_id"`
-	Category   Category `gorm:"foreignKey:CategoryID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"category,omitempty"`
+	// Category Relation (1 Category -> N Articles, legacy)
+	CategoryID uint     `gorm:"index"                                                             json:"category_id,omitempty"`
+	Category   Category `gorm:"foreignKey:CategoryID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL" json:"category,omitempty"`
+
+	// Multiple Categories Relation (Many-to-Many via article_categories)
+	Categories []Category `gorm:"many2many:article_categories;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"categories,omitempty"`
 
 	// Author Relation (1 User -> N Articles)
 	AuthorID uint `gorm:"not null;index"                                                    json:"author_id"`
