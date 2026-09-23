@@ -147,7 +147,49 @@ func (r *ArticleRepository) SlugExistsExcept(slug string, excludeID uint) (bool,
 	return count > 0, err
 }
 
-// FindPublished mengambil daftar artikel yang berstatus published dengan pagination
+// FindPublishedByPostType mengambil daftar artikel published berdasarkan post_type dengan pagination
+func (r *ArticleRepository) FindPublishedByPostType(postType model.PostType, page, limit int) ([]model.Article, int64, error) {
+	var articles []model.Article
+	var total int64
+	offset := (page - 1) * limit
+
+	query := r.db.Model(&model.Article{}).
+		Where("status = ? AND post_type = ?", model.ArticleStatusPublished, postType)
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	err := query.Preload("Categories").
+		Preload("Category").
+		Preload("Tags").
+		Preload("Author").
+		Preload("Author.Role").
+		Offset(offset).
+		Limit(limit).
+		Order("published_at DESC").
+		Find(&articles).Error
+
+	return articles, total, err
+}
+
+// FindPublishedBySlugAndPostType mengambil artikel published berdasarkan slug dan post_type
+func (r *ArticleRepository) FindPublishedBySlugAndPostType(slug string, postType model.PostType) (*model.Article, error) {
+	var article model.Article
+	err := r.db.Where("slug = ? AND status = ? AND post_type = ?", slug, model.ArticleStatusPublished, postType).
+		Preload("Categories").
+		Preload("Category").
+		Preload("Tags").
+		Preload("Author").
+		Preload("Author.Role").
+		First(&article).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	return &article, err
+}
+
+// FindPublished mengambil daftar artikel yang berstatus published dengan pagination (legacy/all)
 func (r *ArticleRepository) FindPublished(page, limit int) ([]model.Article, int64, error) {
 	var articles []model.Article
 	var total int64
@@ -172,7 +214,7 @@ func (r *ArticleRepository) FindPublished(page, limit int) ([]model.Article, int
 	return articles, total, err
 }
 
-// FindPublishedBySlug mengambil artikel published berdasarkan slug
+// FindPublishedBySlug mengambil artikel published berdasarkan slug (legacy/all)
 func (r *ArticleRepository) FindPublishedBySlug(slug string) (*model.Article, error) {
 	var article model.Article
 	err := r.db.Where("slug = ? AND status = ?", slug, model.ArticleStatusPublished).

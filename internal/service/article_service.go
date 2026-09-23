@@ -452,8 +452,8 @@ func (s *ArticleService) TakedownArticle(id uint, adminUserID uint) (*model.Arti
 
 // ─── Public (No Auth) ─────────────────────────────────────────────────────────
 
-// GetPublishedArticles mengambil daftar artikel published untuk publik dengan pagination
-func (s *ArticleService) GetPublishedArticles(page, limit int) (*ArticleListResponse, error) {
+// GetPublishedArticlesByPostType mengambil daftar artikel published berdasarkan post_type dengan pagination
+func (s *ArticleService) GetPublishedArticlesByPostType(postType model.PostType, page, limit int) (*ArticleListResponse, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -461,7 +461,7 @@ func (s *ArticleService) GetPublishedArticles(page, limit int) (*ArticleListResp
 		limit = 10
 	}
 
-	articles, total, err := s.articleRepo.FindPublished(page, limit)
+	articles, total, err := s.articleRepo.FindPublishedByPostType(postType, page, limit)
 	if err != nil {
 		return nil, fmt.Errorf("database error: %w", err)
 	}
@@ -480,9 +480,9 @@ func (s *ArticleService) GetPublishedArticles(page, limit int) (*ArticleListResp
 	}, nil
 }
 
-// GetPublishedArticleBySlug mengambil detail artikel published berdasarkan slug untuk publik
-func (s *ArticleService) GetPublishedArticleBySlug(slug string) (*model.Article, error) {
-	article, err := s.articleRepo.FindPublishedBySlug(slug)
+// GetPublishedArticleBySlugAndPostType mengambil detail artikel published berdasarkan slug dan post_type untuk publik
+func (s *ArticleService) GetPublishedArticleBySlugAndPostType(slug string, postType model.PostType) (*model.Article, error) {
+	article, err := s.articleRepo.FindPublishedBySlugAndPostType(slug, postType)
 	if err != nil {
 		return nil, fmt.Errorf("database error: %w", err)
 	}
@@ -490,6 +490,16 @@ func (s *ArticleService) GetPublishedArticleBySlug(slug string) (*model.Article,
 		return nil, errors.New("artikel tidak ditemukan")
 	}
 	return article, nil
+}
+
+// GetPublishedArticles mengambil daftar artikel published untuk publik dengan pagination (default: article)
+func (s *ArticleService) GetPublishedArticles(page, limit int) (*ArticleListResponse, error) {
+	return s.GetPublishedArticlesByPostType(model.PostTypeArticle, page, limit)
+}
+
+// GetPublishedArticleBySlug mengambil detail artikel published berdasarkan slug untuk publik (default: article)
+func (s *ArticleService) GetPublishedArticleBySlug(slug string) (*model.Article, error) {
+	return s.GetPublishedArticleBySlugAndPostType(slug, model.PostTypeArticle)
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
