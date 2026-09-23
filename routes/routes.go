@@ -142,10 +142,19 @@ func Setup(
 			articles.POST("/:id/takedown", middleware.AdminOrAbove(), articleHandler.TakedownArticle)                   // POST /api/articles/:id/takedown (only Admin & Super Admin)
 		}
 
-		// ── Public Articles (No Auth Required) ──────────────────────────────
+		// ── Public Content (No Auth Required) ──────────────────────────────
 		publicArticleHandler := handler.NewPublicArticleHandler(articleSvc)
 		public := api.Group("/public")
 		{
+			// News
+			public.GET("/news", publicArticleHandler.GetPublicNews)            // GET /api/public/news
+			public.GET("/news/:slug", publicArticleHandler.GetPublicNewsBySlug) // GET /api/public/news/:slug
+
+			// Events
+			public.GET("/events", publicArticleHandler.GetPublicEvents)            // GET /api/public/events
+			public.GET("/events/:slug", publicArticleHandler.GetPublicEventsBySlug) // GET /api/public/events/:slug
+
+			// Articles
 			public.GET("/articles", publicArticleHandler.GetPublicArticles)            // GET /api/public/articles
 			public.GET("/articles/:slug", publicArticleHandler.GetPublicArticleBySlug) // GET /api/public/articles/:slug
 		}

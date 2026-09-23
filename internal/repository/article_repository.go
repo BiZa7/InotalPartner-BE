@@ -16,12 +16,18 @@ func NewArticleRepository(db *gorm.DB) *ArticleRepository {
 	return &ArticleRepository{db: db}
 }
 
-// Create menyimpan artikel baru beserta relasi tags dalam transaksi
-func (r *ArticleRepository) Create(article *model.Article, tags []model.Tag) error {
+// Create menyimpan artikel baru beserta relasi categories dan tags dalam transaksi
+func (r *ArticleRepository) Create(article *model.Article, categories []model.Category, tags []model.Tag) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		article.Tags = nil // Biarkan association replace menangani tags secara eksplisit
+		article.Categories = nil // Biarkan association replace menangani categories secara eksplisit
+		article.Tags = nil       // Biarkan association replace menangani tags secara eksplisit
 		if err := tx.Create(article).Error; err != nil {
 			return err
+		}
+		if len(categories) > 0 {
+			if err := tx.Model(article).Association("Categories").Replace(categories); err != nil {
+				return err
+			}
 		}
 		if len(tags) > 0 {
 			if err := tx.Model(article).Association("Tags").Replace(tags); err != nil {
@@ -32,10 +38,11 @@ func (r *ArticleRepository) Create(article *model.Article, tags []model.Tag) err
 	})
 }
 
-// FindByID mencari artikel berdasarkan ID lengkap dengan Category, Tags, Author, dan TakenDownByUser
+// FindByID mencari artikel berdasarkan ID lengkap dengan Categories, Category, Tags, Author, dan TakenDownByUser
 func (r *ArticleRepository) FindByID(id uint) (*model.Article, error) {
 	var article model.Article
-	err := r.db.Preload("Category").
+	err := r.db.Preload("Categories").
+		Preload("Category").
 		Preload("Tags").
 		Preload("Author").
 		Preload("Author.Role").
@@ -60,7 +67,8 @@ func (r *ArticleRepository) FindAll(page, limit int) ([]model.Article, int64, er
 		return nil, 0, err
 	}
 
-	err := query.Preload("Category").
+	err := query.Preload("Categories").
+		Preload("Category").
 		Preload("Tags").
 		Preload("Author").
 		Preload("Author.Role").
@@ -84,7 +92,8 @@ func (r *ArticleRepository) FindByAuthorID(authorID uint, page, limit int) ([]mo
 		return nil, 0, err
 	}
 
-	err := query.Preload("Category").
+	err := query.Preload("Categories").
+		Preload("Category").
 		Preload("Tags").
 		Preload("Author").
 		Preload("Author.Role").
@@ -96,11 +105,16 @@ func (r *ArticleRepository) FindByAuthorID(authorID uint, page, limit int) ([]mo
 	return articles, total, err
 }
 
-// Update memperbarui data artikel dan relasi tags dalam transaksi
-func (r *ArticleRepository) Update(article *model.Article, tags []model.Tag, updateTags bool) error {
+// Update memperbarui data artikel dan relasi categories/tags dalam transaksi
+func (r *ArticleRepository) Update(article *model.Article, categories []model.Category, updateCategories bool, tags []model.Tag, updateTags bool) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Save(article).Error; err != nil {
 			return err
+		}
+		if updateCategories {
+			if err := tx.Model(article).Association("Categories").Replace(categories); err != nil {
+				return err
+			}
 		}
 		if updateTags {
 			if err := tx.Model(article).Association("Tags").Replace(tags); err != nil {
@@ -111,7 +125,7 @@ func (r *ArticleRepository) Update(article *model.Article, tags []model.Tag, upd
 	})
 }
 
-// Save menyimpan perubahan artikel tanpa menyentuh relasi tags (untuk publish/status change)
+// Save menyimpan perubahan artikel tanpa menyentuh relasi tags/categories (untuk publish/status change)
 func (r *ArticleRepository) Save(article *model.Article) error {
 	return r.db.Save(article).Error
 }
@@ -133,19 +147,21 @@ func (r *ArticleRepository) SlugExistsExcept(slug string, excludeID uint) (bool,
 	return count > 0, err
 }
 
-// FindPublished mengambil daftar artikel yang berstatus published dengan pagination
-func (r *ArticleRepository) FindPublished(page, limit int) ([]model.Article, int64, error) {
+// FindPublishedByPostType mengambil daftar artikel published berdasarkan post_type dengan pagination
+func (r *ArticleRepository) FindPublishedByPostType(postType model.PostType, page, limit int) ([]model.Article, int64, error) {
 	var articles []model.Article
 	var total int64
 	offset := (page - 1) * limit
 
-	query := r.db.Model(&model.Article{}).Where("status = ?", model.ArticleStatusPublished)
+	query := r.db.Model(&model.Article{}).
+		Where("status = ? AND post_type = ?", model.ArticleStatusPublished, postType)
 
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	err := query.Preload("Category").
+	err := query.Preload("Categories").
+		Preload("Category").
 		Preload("Tags").
 		Preload("Author").
 		Preload("Author.Role").
@@ -157,10 +173,52 @@ func (r *ArticleRepository) FindPublished(page, limit int) ([]model.Article, int
 	return articles, total, err
 }
 
-// FindPublishedBySlug mengambil artikel published berdasarkan slug
+// FindPublishedBySlugAndPostType mengambil artikel published berdasarkan slug dan post_type
+func (r *ArticleRepository) FindPublishedBySlugAndPostType(slug string, postType model.PostType) (*model.Article, error) {
+	var article model.Article
+	err := r.db.Where("slug = ? AND status = ? AND post_type = ?", slug, model.ArticleStatusPublished, postType).
+		Preload("Categories").
+		Preload("Category").
+		Preload("Tags").
+		Preload("Author").
+		Preload("Author.Role").
+		First(&article).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	return &article, err
+}
+
+// FindPublished mengambil daftar artikel yang berstatus published dengan pagination (legacy/all)
+func (r *ArticleRepository) FindPublished(page, limit int) ([]model.Article, int64, error) {
+	var articles []model.Article
+	var total int64
+	offset := (page - 1) * limit
+
+	query := r.db.Model(&model.Article{}).Where("status = ?", model.ArticleStatusPublished)
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	err := query.Preload("Categories").
+		Preload("Category").
+		Preload("Tags").
+		Preload("Author").
+		Preload("Author.Role").
+		Offset(offset).
+		Limit(limit).
+		Order("published_at DESC").
+		Find(&articles).Error
+
+	return articles, total, err
+}
+
+// FindPublishedBySlug mengambil artikel published berdasarkan slug (legacy/all)
 func (r *ArticleRepository) FindPublishedBySlug(slug string) (*model.Article, error) {
 	var article model.Article
 	err := r.db.Where("slug = ? AND status = ?", slug, model.ArticleStatusPublished).
+		Preload("Categories").
 		Preload("Category").
 		Preload("Tags").
 		Preload("Author").
