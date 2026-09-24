@@ -10,16 +10,16 @@ import (
 	"inotal-be/internal/service"
 )
 
-type ArticleHandler struct {
+type NewsHandler struct {
 	articleSvc *service.ArticleService
 }
 
-func NewArticleHandler(articleSvc *service.ArticleService) *ArticleHandler {
-	return &ArticleHandler{articleSvc: articleSvc}
+func NewNewsHandler(articleSvc *service.ArticleService) *NewsHandler {
+	return &NewsHandler{articleSvc: articleSvc}
 }
 
-// GetArticles — GET /api/articles?page=1&limit=10
-func (h *ArticleHandler) GetArticles(c *gin.Context) {
+// GetNews — GET /api/news?page=1&limit=10
+func (h *NewsHandler) GetNews(c *gin.Context) {
 	userIDVal, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -36,7 +36,7 @@ func (h *ArticleHandler) GetArticles(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 
-	result, err := h.articleSvc.GetArticlesByPostType(userID, userRole, model.PostTypeArticle, page, limit)
+	result, err := h.articleSvc.GetArticlesByPostType(userID, userRole, model.PostTypeNews, page, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -47,13 +47,13 @@ func (h *ArticleHandler) GetArticles(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Berhasil mengambil daftar artikel",
+		"message": "Berhasil mengambil daftar berita",
 		"data":    result,
 	})
 }
 
-// GetArticle — GET /api/articles/:id
-func (h *ArticleHandler) GetArticle(c *gin.Context) {
+// GetNewsByID — GET /api/news/:id
+func (h *NewsHandler) GetNewsByID(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		return
@@ -72,7 +72,7 @@ func (h *ArticleHandler) GetArticle(c *gin.Context) {
 	userRoleVal, _ := c.Get("user_role")
 	userRole, _ := userRoleVal.(string)
 
-	article, err := h.articleSvc.GetArticleByIDAndPostType(id, userID, userRole, model.PostTypeArticle)
+	article, err := h.articleSvc.GetArticleByIDAndPostType(id, userID, userRole, model.PostTypeNews)
 	if err != nil {
 		status := http.StatusInternalServerError
 		switch err.Error() {
@@ -90,13 +90,13 @@ func (h *ArticleHandler) GetArticle(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Berhasil mengambil data artikel",
+		"message": "Berhasil mengambil data berita",
 		"data":    article,
 	})
 }
 
-// CreateArticle — POST /api/articles
-func (h *ArticleHandler) CreateArticle(c *gin.Context) {
+// CreateNews — POST /api/news
+func (h *NewsHandler) CreateNews(c *gin.Context) {
 	userIDVal, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -117,7 +117,7 @@ func (h *ArticleHandler) CreateArticle(c *gin.Context) {
 		return
 	}
 
-	article, err := h.articleSvc.CreateArticleWithPostType(userID, req, model.PostTypeArticle)
+	article, err := h.articleSvc.CreateArticleWithPostType(userID, req, model.PostTypeNews)
 	if err != nil {
 		status := http.StatusInternalServerError
 		switch err.Error() {
@@ -133,13 +133,13 @@ func (h *ArticleHandler) CreateArticle(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{
 		"success": true,
-		"message": "Artikel berhasil dibuat",
+		"message": "Berita berhasil dibuat",
 		"data":    article,
 	})
 }
 
-// UpdateArticle — PUT /api/articles/:id
-func (h *ArticleHandler) UpdateArticle(c *gin.Context) {
+// UpdateNews — PUT /api/news/:id
+func (h *NewsHandler) UpdateNews(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		return
@@ -165,7 +165,7 @@ func (h *ArticleHandler) UpdateArticle(c *gin.Context) {
 		return
 	}
 
-	article, err := h.articleSvc.UpdateArticleWithPostType(id, userID, req, model.PostTypeArticle)
+	article, err := h.articleSvc.UpdateArticleWithPostType(id, userID, req, model.PostTypeNews)
 	if err != nil {
 		status := http.StatusInternalServerError
 		switch err.Error() {
@@ -185,19 +185,19 @@ func (h *ArticleHandler) UpdateArticle(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Artikel berhasil diperbarui",
+		"message": "Berita berhasil diperbarui",
 		"data":    article,
 	})
 }
 
-// PublishArticle — POST /api/articles/:id/publish
-func (h *ArticleHandler) PublishArticle(c *gin.Context) {
+// PublishNews — POST /api/news/:id/publish
+func (h *NewsHandler) PublishNews(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		return
 	}
 
-	article, err := h.articleSvc.PublishArticleWithPostType(id, model.PostTypeArticle)
+	article, err := h.articleSvc.PublishArticleWithPostType(id, model.PostTypeNews)
 	if err != nil {
 		status := http.StatusInternalServerError
 		switch err.Error() {
@@ -215,13 +215,13 @@ func (h *ArticleHandler) PublishArticle(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Artikel berhasil dipublish",
+		"message": "Berita berhasil dipublish",
 		"data":    article,
 	})
 }
 
-// TakedownArticle — POST /api/articles/:id/takedown
-func (h *ArticleHandler) TakedownArticle(c *gin.Context) {
+// TakedownNews — POST /api/news/:id/takedown
+func (h *NewsHandler) TakedownNews(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		return
@@ -237,7 +237,7 @@ func (h *ArticleHandler) TakedownArticle(c *gin.Context) {
 	}
 	userID := userIDVal.(uint)
 
-	article, err := h.articleSvc.TakedownArticleWithPostType(id, userID, model.PostTypeArticle)
+	article, err := h.articleSvc.TakedownArticleWithPostType(id, userID, model.PostTypeNews)
 	if err != nil {
 		status := http.StatusInternalServerError
 		switch err.Error() {
@@ -255,7 +255,7 @@ func (h *ArticleHandler) TakedownArticle(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Artikel berhasil diturunkan (takedown)",
+		"message": "Berita berhasil diturunkan (takedown)",
 		"data":    article,
 	})
 }

@@ -55,7 +55,75 @@ func (r *ArticleRepository) FindByID(id uint) (*model.Article, error) {
 	return &article, err
 }
 
-// FindAll mengambil seluruh artikel (untuk admin / super_admin) dengan pagination
+// FindByIDAndPostType mencari artikel berdasarkan ID dan post_type
+func (r *ArticleRepository) FindByIDAndPostType(id uint, postType model.PostType) (*model.Article, error) {
+	var article model.Article
+	err := r.db.Where("id = ? AND post_type = ?", id, postType).
+		Preload("Categories").
+		Preload("Category").
+		Preload("Tags").
+		Preload("Author").
+		Preload("Author.Role").
+		Preload("TakenDownByUser").
+		Preload("TakenDownByUser.Role").
+		First(&article).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	return &article, err
+}
+
+// FindAllByPostType mengambil seluruh artikel berdasarkan post_type (untuk admin / super_admin) dengan pagination
+func (r *ArticleRepository) FindAllByPostType(postType model.PostType, page, limit int) ([]model.Article, int64, error) {
+	var articles []model.Article
+	var total int64
+	offset := (page - 1) * limit
+
+	query := r.db.Model(&model.Article{}).Where("post_type = ?", postType)
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	err := query.Preload("Categories").
+		Preload("Category").
+		Preload("Tags").
+		Preload("Author").
+		Preload("Author.Role").
+		Offset(offset).
+		Limit(limit).
+		Order("created_at DESC").
+		Find(&articles).Error
+
+	return articles, total, err
+}
+
+// FindByAuthorIDAndPostType mengambil daftar artikel berdasarkan author_id dan post_type dengan pagination
+func (r *ArticleRepository) FindByAuthorIDAndPostType(authorID uint, postType model.PostType, page, limit int) ([]model.Article, int64, error) {
+	var articles []model.Article
+	var total int64
+	offset := (page - 1) * limit
+
+	query := r.db.Model(&model.Article{}).Where("author_id = ? AND post_type = ?", authorID, postType)
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	err := query.Preload("Categories").
+		Preload("Category").
+		Preload("Tags").
+		Preload("Author").
+		Preload("Author.Role").
+		Offset(offset).
+		Limit(limit).
+		Order("created_at DESC").
+		Find(&articles).Error
+
+	return articles, total, err
+}
+
+// FindAll mengambil seluruh artikel (untuk admin / super_admin) dengan pagination (legacy/all)
 func (r *ArticleRepository) FindAll(page, limit int) ([]model.Article, int64, error) {
 	var articles []model.Article
 	var total int64
@@ -80,7 +148,7 @@ func (r *ArticleRepository) FindAll(page, limit int) ([]model.Article, int64, er
 	return articles, total, err
 }
 
-// FindByAuthorID mengambil daftar artikel berdasarkan author_id dengan pagination
+// FindByAuthorID mengambil daftar artikel berdasarkan author_id dengan pagination (legacy/all)
 func (r *ArticleRepository) FindByAuthorID(authorID uint, page, limit int) ([]model.Article, int64, error) {
 	var articles []model.Article
 	var total int64

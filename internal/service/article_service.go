@@ -68,8 +68,8 @@ func NewArticleService(
 	}
 }
 
-// GetArticles mengambil daftar artikel (Operator: milik sendiri, Admin/SuperAdmin: semua)
-func (s *ArticleService) GetArticles(userID uint, userRole string, page, limit int) (*ArticleListResponse, error) {
+// GetArticlesByPostType mengambil daftar artikel ber-post_type spesifik (Operator: milik sendiri, Admin/SuperAdmin: semua)
+func (s *ArticleService) GetArticlesByPostType(userID uint, userRole string, postType model.PostType, page, limit int) (*ArticleListResponse, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -82,9 +82,9 @@ func (s *ArticleService) GetArticles(userID uint, userRole string, page, limit i
 	var err error
 
 	if userRole == "admin" || userRole == "super_admin" {
-		articles, total, err = s.articleRepo.FindAll(page, limit)
+		articles, total, err = s.articleRepo.FindAllByPostType(postType, page, limit)
 	} else {
-		articles, total, err = s.articleRepo.FindByAuthorID(userID, page, limit)
+		articles, total, err = s.articleRepo.FindByAuthorIDAndPostType(userID, postType, page, limit)
 	}
 
 	if err != nil {
@@ -105,9 +105,14 @@ func (s *ArticleService) GetArticles(userID uint, userRole string, page, limit i
 	}, nil
 }
 
-// GetArticleByID mengambil detail artikel (Operator: milik sendiri, Admin/SuperAdmin: semua)
-func (s *ArticleService) GetArticleByID(id uint, userID uint, userRole string) (*model.Article, error) {
-	article, err := s.articleRepo.FindByID(id)
+// GetArticles mengambil daftar artikel ber-type article (default/legacy)
+func (s *ArticleService) GetArticles(userID uint, userRole string, page, limit int) (*ArticleListResponse, error) {
+	return s.GetArticlesByPostType(userID, userRole, model.PostTypeArticle, page, limit)
+}
+
+// GetArticleByIDAndPostType mengambil detail artikel berdasarkan ID dan post_type
+func (s *ArticleService) GetArticleByIDAndPostType(id uint, userID uint, userRole string, expectedPostType model.PostType) (*model.Article, error) {
+	article, err := s.articleRepo.FindByIDAndPostType(id, expectedPostType)
 	if err != nil {
 		return nil, fmt.Errorf("database error: %w", err)
 	}
@@ -125,8 +130,27 @@ func (s *ArticleService) GetArticleByID(id uint, userID uint, userRole string) (
 	return article, nil
 }
 
-// CreateArticle membuat artikel baru milik operator dengan status draft
-func (s *ArticleService) CreateArticle(authorID uint, req CreateArticleRequest) (*model.Article, error) {
+// GetArticleByID mengambil detail artikel (default/legacy)
+func (s *ArticleService) GetArticleByID(id uint, userID uint, userRole string) (*model.Article, error) {
+	article, err := s.articleRepo.FindByID(id)
+	if err != nil {
+		return nil, fmt.Errorf("database error: %w", err)
+	}
+	if article == nil {
+		return nil, errors.New("artikel tidak ditemukan")
+	}
+
+	if userRole != "admin" && userRole != "super_admin" {
+		if article.AuthorID != userID {
+			return nil, errors.New("akses ditolak: bukan pemilik artikel")
+		}
+	}
+
+	return article, nil
+}
+
+// CreateArticleWithPostType membuat konten baru milik operator dengan post_type tertentu
+func (s *ArticleService) CreateArticleWithPostType(authorID uint, req CreateArticleRequest, forcedPostType model.PostType) (*model.Article, error) {
 	title := strings.TrimSpace(req.Title)
 	if title == "" {
 		return nil, errors.New("judul artikel tidak boleh kosong")
@@ -210,9 +234,6 @@ func (s *ArticleService) CreateArticle(authorID uint, req CreateArticleRequest) 
 		return nil, err
 	}
 
-	// Tentukan PostType (default: news jika tidak dikirim / tidak valid)
-	postType := resolvePostType(req.PostType)
-
 	article := &model.Article{
 		Title:        title,
 		Slug:         slug,
@@ -222,11 +243,11 @@ func (s *ArticleService) CreateArticle(authorID uint, req CreateArticleRequest) 
 		CategoryID:   legacyCategoryID,
 		AuthorID:     authorID,
 		Status:       model.ArticleStatusDraft,
-		PostType:     postType,
+		PostType:     forcedPostType,
 	}
 
 	// Set Event Details hanya jika post_type = event
-	if postType == model.PostTypeEvent {
+	if forcedPostType == model.PostTypeEvent {
 		article.EventDate = req.EventDate
 		article.EventTime = normalizeEventTime(req.EventTime)
 		article.EventLocation = req.EventLocation
@@ -240,13 +261,18 @@ func (s *ArticleService) CreateArticle(authorID uint, req CreateArticleRequest) 
 		return nil, fmt.Errorf("gagal membuat artikel: %w", err)
 	}
 
-	// Ambil data artikel lengkap dengan relasi untuk dikembalikan
 	return s.articleRepo.FindByID(article.ID)
 }
 
-// UpdateArticle memperbarui artikel (Hanya Operator yang boleh memperbarui artikel miliknya sendiri)
-func (s *ArticleService) UpdateArticle(id uint, authorID uint, req UpdateArticleRequest) (*model.Article, error) {
-	article, err := s.articleRepo.FindByID(id)
+// CreateArticle membuat artikel baru (default/legacy, post_type dari request/article)
+func (s *ArticleService) CreateArticle(authorID uint, req CreateArticleRequest) (*model.Article, error) {
+	postType := resolvePostType(req.PostType)
+	return s.CreateArticleWithPostType(authorID, req, postType)
+}
+
+// UpdateArticleWithPostType memperbarui artikel dengan tipe spesifik (PostType tidak boleh diubah)
+func (s *ArticleService) UpdateArticleWithPostType(id uint, authorID uint, req UpdateArticleRequest, expectedPostType model.PostType) (*model.Article, error) {
+	article, err := s.articleRepo.FindByIDAndPostType(id, expectedPostType)
 	if err != nil {
 		return nil, fmt.Errorf("database error: %w", err)
 	}
@@ -366,24 +392,20 @@ func (s *ArticleService) UpdateArticle(id uint, authorID uint, req UpdateArticle
 		}
 	}
 
-	// Update PostType jika dikirim
-	if req.PostType != "" {
-		article.PostType = resolvePostType(req.PostType)
-	}
+	// PostType TIDAK boleh diubah lewat API ini, tetap expectedPostType
+	article.PostType = expectedPostType
 
-	// Update Event Details berdasarkan PostType final
-	if article.PostType == model.PostTypeEvent {
+	// Update Event Details jika expectedPostType = event, jika tidak clear event fields
+	if expectedPostType == model.PostTypeEvent {
 		article.EventDate = req.EventDate
 		article.EventTime = normalizeEventTime(req.EventTime)
 		article.EventLocation = req.EventLocation
 	} else {
-		// Jika News: clear event fields
 		article.EventDate = nil
 		article.EventTime = nil
 		article.EventLocation = nil
 	}
 
-	// Note: Status dan AuthorID tidak diubah di sini
 	if err := s.articleRepo.Update(article, categories, updateCategories, tags, updateTags); err != nil {
 		return nil, fmt.Errorf("gagal memperbarui artikel: %w", err)
 	}
@@ -391,9 +413,21 @@ func (s *ArticleService) UpdateArticle(id uint, authorID uint, req UpdateArticle
 	return s.articleRepo.FindByID(id)
 }
 
-// PublishArticle mem-publish artikel draft (hanya Admin / Super Admin)
-func (s *ArticleService) PublishArticle(id uint) (*model.Article, error) {
-	article, err := s.articleRepo.FindByID(id)
+// UpdateArticle memperbarui artikel (default/legacy)
+func (s *ArticleService) UpdateArticle(id uint, authorID uint, req UpdateArticleRequest) (*model.Article, error) {
+	existing, err := s.articleRepo.FindByID(id)
+	if err != nil {
+		return nil, fmt.Errorf("database error: %w", err)
+	}
+	if existing == nil {
+		return nil, errors.New("artikel tidak ditemukan")
+	}
+	return s.UpdateArticleWithPostType(id, authorID, req, existing.PostType)
+}
+
+// PublishArticleWithPostType mem-publish artikel berdasarkan ID dan post_type
+func (s *ArticleService) PublishArticleWithPostType(id uint, expectedPostType model.PostType) (*model.Article, error) {
+	article, err := s.articleRepo.FindByIDAndPostType(id, expectedPostType)
 	if err != nil {
 		return nil, fmt.Errorf("database error: %w", err)
 	}
@@ -421,9 +455,21 @@ func (s *ArticleService) PublishArticle(id uint) (*model.Article, error) {
 	return s.articleRepo.FindByID(id)
 }
 
-// TakedownArticle men-takedown artikel yang berstatus published (hanya Admin / Super Admin)
-func (s *ArticleService) TakedownArticle(id uint, adminUserID uint) (*model.Article, error) {
-	article, err := s.articleRepo.FindByID(id)
+// PublishArticle mem-publish artikel draft (default/legacy)
+func (s *ArticleService) PublishArticle(id uint) (*model.Article, error) {
+	existing, err := s.articleRepo.FindByID(id)
+	if err != nil {
+		return nil, fmt.Errorf("database error: %w", err)
+	}
+	if existing == nil {
+		return nil, errors.New("artikel tidak ditemukan")
+	}
+	return s.PublishArticleWithPostType(id, existing.PostType)
+}
+
+// TakedownArticleWithPostType men-takedown artikel berdasarkan ID dan post_type
+func (s *ArticleService) TakedownArticleWithPostType(id uint, adminUserID uint, expectedPostType model.PostType) (*model.Article, error) {
+	article, err := s.articleRepo.FindByIDAndPostType(id, expectedPostType)
 	if err != nil {
 		return nil, fmt.Errorf("database error: %w", err)
 	}
@@ -448,6 +494,18 @@ func (s *ArticleService) TakedownArticle(id uint, adminUserID uint) (*model.Arti
 	}
 
 	return s.articleRepo.FindByID(id)
+}
+
+// TakedownArticle men-takedown artikel yang berstatus published (default/legacy)
+func (s *ArticleService) TakedownArticle(id uint, adminUserID uint) (*model.Article, error) {
+	existing, err := s.articleRepo.FindByID(id)
+	if err != nil {
+		return nil, fmt.Errorf("database error: %w", err)
+	}
+	if existing == nil {
+		return nil, errors.New("artikel tidak ditemukan")
+	}
+	return s.TakedownArticleWithPostType(id, adminUserID, existing.PostType)
 }
 
 // ─── Public (No Auth) ─────────────────────────────────────────────────────────

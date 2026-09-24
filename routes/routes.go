@@ -130,7 +130,33 @@ func Setup(
 			tags.DELETE("/:id", middleware.DenyAll(), tagHandler.DeleteTag)
 		}
 
-		// ── Articles ────────────────────────────────────────────────────────
+		// ── News Management ──────────────────────────────────────────────────
+		newsHandler := handler.NewNewsHandler(articleSvc)
+		news := api.Group("/news")
+		news.Use(middleware.AuthMiddleware(authSvc))
+		{
+			news.GET("", middleware.RequireRole("operator", "admin", "super_admin"), newsHandler.GetNews)       // GET  /api/news
+			news.POST("", middleware.OperatorOnly(), newsHandler.CreateNews)                                     // POST /api/news (only Operator)
+			news.GET("/:id", middleware.RequireRole("operator", "admin", "super_admin"), newsHandler.GetNewsByID) // GET  /api/news/:id
+			news.PUT("/:id", middleware.OperatorOnly(), newsHandler.UpdateNews)                                  // PUT  /api/news/:id (only Operator)
+			news.POST("/:id/publish", middleware.AdminOrAbove(), newsHandler.PublishNews)                        // POST /api/news/:id/publish (only Admin & Super Admin)
+			news.POST("/:id/takedown", middleware.AdminOrAbove(), newsHandler.TakedownNews)                      // POST /api/news/:id/takedown (only Admin & Super Admin)
+		}
+
+		// ── Event Management ─────────────────────────────────────────────────
+		eventHandler := handler.NewEventHandler(articleSvc)
+		events := api.Group("/events")
+		events.Use(middleware.AuthMiddleware(authSvc))
+		{
+			events.GET("", middleware.RequireRole("operator", "admin", "super_admin"), eventHandler.GetEvents)       // GET  /api/events
+			events.POST("", middleware.OperatorOnly(), eventHandler.CreateEvent)                                     // POST /api/events (only Operator)
+			events.GET("/:id", middleware.RequireRole("operator", "admin", "super_admin"), eventHandler.GetEventByID) // GET  /api/events/:id
+			events.PUT("/:id", middleware.OperatorOnly(), eventHandler.UpdateEvent)                                  // PUT  /api/events/:id (only Operator)
+			events.POST("/:id/publish", middleware.AdminOrAbove(), eventHandler.PublishEvent)                        // POST /api/events/:id/publish (only Admin & Super Admin)
+			events.POST("/:id/takedown", middleware.AdminOrAbove(), eventHandler.TakedownEvent)                      // POST /api/events/:id/takedown (only Admin & Super Admin)
+		}
+
+		// ── Article Management ───────────────────────────────────────────────
 		articles := api.Group("/articles")
 		articles.Use(middleware.AuthMiddleware(authSvc))
 		{
