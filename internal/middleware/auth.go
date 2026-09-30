@@ -39,10 +39,31 @@ func AuthMiddleware(authSvc *service.AuthService) gin.HandlerFunc {
             return
         }
 
+        // Ambil role TERKINI dari database, bukan dari token.
+        // Role di dalam token adalah "foto" saat login; kalau role user diubah
+        // (mis. dipromosikan jadi admin) setelah itu, token lama tetap membawa
+        // role basi sampai user login ulang. Dengan mengambil ulang dari DB di
+        // sini, perubahan role langsung berlaku di request berikutnya.
+        currentRole, err := authSvc.CurrentRole(claims.UserID)
+        if err != nil {
+            c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+                "success": false,
+                "message": "Gagal memverifikasi akun",
+            })
+            return
+        }
+        if currentRole == "" {
+            c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+                "success": false,
+                "message": "Akun tidak ditemukan atau sudah dinonaktifkan",
+            })
+            return
+        }
+
         // Simpan claims ke context agar handler bisa mengakses
         c.Set("user_id", claims.UserID)
         c.Set("user_email", claims.Email)
-        c.Set("user_role", string(claims.Role))
+        c.Set("user_role", currentRole)
         c.Next()
     }
 }

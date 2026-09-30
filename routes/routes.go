@@ -28,6 +28,10 @@ func Setup(
 		AllowCredentials: true,
 	}))
 
+	// Static files untuk gambar yang sudah diupload.
+	// Contoh: http://localhost:8080/uploads/abc123.jpg
+	r.Static("/uploads", "./uploads")
+
 	// Health check
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "service": "inotal-be"})
@@ -44,6 +48,14 @@ func Setup(
 	// API v1
 	api := r.Group("/api")
 	{
+		// ── Uploads ─────────────────────────────────────────────────────────
+		uploads := api.Group("/uploads")
+		uploads.Use(middleware.AuthMiddleware(authSvc))
+		uploads.Use(middleware.OperatorOnly())
+		{
+			uploads.POST("/image", handler.UploadImage) // POST /api/uploads/image
+		}
+
 		// ── Auth ────────────────────────────────────────────────────────────
 		auth := api.Group("/auth")
 		{
@@ -135,12 +147,12 @@ func Setup(
 		news := api.Group("/news")
 		news.Use(middleware.AuthMiddleware(authSvc))
 		{
-			news.GET("", middleware.RequireRole("operator", "admin", "super_admin"), newsHandler.GetNews)       // GET  /api/news
-			news.POST("", middleware.OperatorOnly(), newsHandler.CreateNews)                                     // POST /api/news (only Operator)
+			news.GET("", middleware.RequireRole("operator", "admin", "super_admin"), newsHandler.GetNews)         // GET  /api/news
+			news.POST("", middleware.OperatorOnly(), newsHandler.CreateNews)                                      // POST /api/news (only Operator)
 			news.GET("/:id", middleware.RequireRole("operator", "admin", "super_admin"), newsHandler.GetNewsByID) // GET  /api/news/:id
-			news.PUT("/:id", middleware.OperatorOnly(), newsHandler.UpdateNews)                                  // PUT  /api/news/:id (only Operator)
-			news.POST("/:id/publish", middleware.AdminOrAbove(), newsHandler.PublishNews)                        // POST /api/news/:id/publish (only Admin & Super Admin)
-			news.POST("/:id/takedown", middleware.AdminOrAbove(), newsHandler.TakedownNews)                      // POST /api/news/:id/takedown (only Admin & Super Admin)
+			news.PUT("/:id", middleware.OperatorOnly(), newsHandler.UpdateNews)                                   // PUT  /api/news/:id (only Operator)
+			news.POST("/:id/publish", middleware.AdminOrAbove(), newsHandler.PublishNews)                         // POST /api/news/:id/publish (only Admin & Super Admin)
+			news.POST("/:id/takedown", middleware.AdminOrAbove(), newsHandler.TakedownNews)                       // POST /api/news/:id/takedown (only Admin & Super Admin)
 		}
 
 		// ── Event Management ─────────────────────────────────────────────────
@@ -148,12 +160,12 @@ func Setup(
 		events := api.Group("/events")
 		events.Use(middleware.AuthMiddleware(authSvc))
 		{
-			events.GET("", middleware.RequireRole("operator", "admin", "super_admin"), eventHandler.GetEvents)       // GET  /api/events
-			events.POST("", middleware.OperatorOnly(), eventHandler.CreateEvent)                                     // POST /api/events (only Operator)
+			events.GET("", middleware.RequireRole("operator", "admin", "super_admin"), eventHandler.GetEvents)        // GET  /api/events
+			events.POST("", middleware.OperatorOnly(), eventHandler.CreateEvent)                                      // POST /api/events (only Operator)
 			events.GET("/:id", middleware.RequireRole("operator", "admin", "super_admin"), eventHandler.GetEventByID) // GET  /api/events/:id
-			events.PUT("/:id", middleware.OperatorOnly(), eventHandler.UpdateEvent)                                  // PUT  /api/events/:id (only Operator)
-			events.POST("/:id/publish", middleware.AdminOrAbove(), eventHandler.PublishEvent)                        // POST /api/events/:id/publish (only Admin & Super Admin)
-			events.POST("/:id/takedown", middleware.AdminOrAbove(), eventHandler.TakedownEvent)                      // POST /api/events/:id/takedown (only Admin & Super Admin)
+			events.PUT("/:id", middleware.OperatorOnly(), eventHandler.UpdateEvent)                                   // PUT  /api/events/:id (only Operator)
+			events.POST("/:id/publish", middleware.AdminOrAbove(), eventHandler.PublishEvent)                         // POST /api/events/:id/publish (only Admin & Super Admin)
+			events.POST("/:id/takedown", middleware.AdminOrAbove(), eventHandler.TakedownEvent)                       // POST /api/events/:id/takedown (only Admin & Super Admin)
 		}
 
 		// ── Article Management ───────────────────────────────────────────────
@@ -173,11 +185,11 @@ func Setup(
 		public := api.Group("/public")
 		{
 			// News
-			public.GET("/news", publicArticleHandler.GetPublicNews)            // GET /api/public/news
+			public.GET("/news", publicArticleHandler.GetPublicNews)             // GET /api/public/news
 			public.GET("/news/:slug", publicArticleHandler.GetPublicNewsBySlug) // GET /api/public/news/:slug
 
 			// Events
-			public.GET("/events", publicArticleHandler.GetPublicEvents)            // GET /api/public/events
+			public.GET("/events", publicArticleHandler.GetPublicEvents)             // GET /api/public/events
 			public.GET("/events/:slug", publicArticleHandler.GetPublicEventsBySlug) // GET /api/public/events/:slug
 
 			// Articles

@@ -350,6 +350,20 @@ func (s *AuthService) generateJWT(user *model.User) (string, error) {
 	return token.SignedString([]byte(cfg.JWTSecret))
 }
 
+// CurrentRole mengambil role user TERKINI dari database (bukan dari token),
+// supaya perubahan role via halaman Users langsung berlaku tanpa perlu logout.
+// Mengembalikan "" jika user tidak ditemukan (mis. sudah dihapus setelah token diterbitkan).
+func (s *AuthService) CurrentRole(userID uint) (string, error) {
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return "", fmt.Errorf("database error: %w", err)
+	}
+	if user == nil {
+		return "", nil
+	}
+	return user.Role.Name, nil
+}
+
 func (s *AuthService) ValidateJWT(tokenStr string) (*JWTClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &JWTClaims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
