@@ -18,6 +18,7 @@ func Setup(
 	categorySvc *service.CategoryService,
 	tagSvc *service.TagService,
 	articleSvc *service.ArticleService,
+	bannerSvc *service.HomepageBannerService,
 ) {
 	// CORS
 	r.Use(cors.New(cors.Config{
@@ -27,10 +28,6 @@ func Setup(
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 	}))
-
-	// Static files untuk gambar yang sudah diupload.
-	// Contoh: http://localhost:8080/uploads/abc123.jpg
-	r.Static("/uploads", "./uploads")
 
 	// Health check
 	r.GET("/health", func(c *gin.Context) {
@@ -44,14 +41,16 @@ func Setup(
 	categoryHandler := handler.NewCategoryHandler(categorySvc)
 	tagHandler := handler.NewTagHandler(tagSvc)
 	articleHandler := handler.NewArticleHandler(articleSvc)
+	bannerHandler := handler.NewHomepageBannerHandler(bannerSvc)
 
 	// API v1
 	api := r.Group("/api")
 	{
+
 		// ── Uploads ─────────────────────────────────────────────────────────
 		uploads := api.Group("/uploads")
 		uploads.Use(middleware.AuthMiddleware(authSvc))
-		uploads.Use(middleware.OperatorOnly())
+		uploads.Use(middleware.RequireRole("operator", "admin", "super_admin"))
 		{
 			uploads.POST("/image", handler.UploadImage) // POST /api/uploads/image
 		}
@@ -147,12 +146,12 @@ func Setup(
 		news := api.Group("/news")
 		news.Use(middleware.AuthMiddleware(authSvc))
 		{
-			news.GET("", middleware.RequireRole("operator", "admin", "super_admin"), newsHandler.GetNews)         // GET  /api/news
-			news.POST("", middleware.OperatorOnly(), newsHandler.CreateNews)                                      // POST /api/news (only Operator)
+			news.GET("", middleware.RequireRole("operator", "admin", "super_admin"), newsHandler.GetNews)       // GET  /api/news
+			news.POST("", middleware.OperatorOnly(), newsHandler.CreateNews)                                     // POST /api/news (only Operator)
 			news.GET("/:id", middleware.RequireRole("operator", "admin", "super_admin"), newsHandler.GetNewsByID) // GET  /api/news/:id
-			news.PUT("/:id", middleware.OperatorOnly(), newsHandler.UpdateNews)                                   // PUT  /api/news/:id (only Operator)
-			news.POST("/:id/publish", middleware.AdminOrAbove(), newsHandler.PublishNews)                         // POST /api/news/:id/publish (only Admin & Super Admin)
-			news.POST("/:id/takedown", middleware.AdminOrAbove(), newsHandler.TakedownNews)                       // POST /api/news/:id/takedown (only Admin & Super Admin)
+			news.PUT("/:id", middleware.OperatorOnly(), newsHandler.UpdateNews)                                  // PUT  /api/news/:id (only Operator)
+			news.POST("/:id/publish", middleware.AdminOrAbove(), newsHandler.PublishNews)                        // POST /api/news/:id/publish (only Admin & Super Admin)
+			news.POST("/:id/takedown", middleware.AdminOrAbove(), newsHandler.TakedownNews)                      // POST /api/news/:id/takedown (only Admin & Super Admin)
 		}
 
 		// ── Event Management ─────────────────────────────────────────────────
@@ -160,12 +159,12 @@ func Setup(
 		events := api.Group("/events")
 		events.Use(middleware.AuthMiddleware(authSvc))
 		{
-			events.GET("", middleware.RequireRole("operator", "admin", "super_admin"), eventHandler.GetEvents)        // GET  /api/events
-			events.POST("", middleware.OperatorOnly(), eventHandler.CreateEvent)                                      // POST /api/events (only Operator)
+			events.GET("", middleware.RequireRole("operator", "admin", "super_admin"), eventHandler.GetEvents)       // GET  /api/events
+			events.POST("", middleware.OperatorOnly(), eventHandler.CreateEvent)                                     // POST /api/events (only Operator)
 			events.GET("/:id", middleware.RequireRole("operator", "admin", "super_admin"), eventHandler.GetEventByID) // GET  /api/events/:id
-			events.PUT("/:id", middleware.OperatorOnly(), eventHandler.UpdateEvent)                                   // PUT  /api/events/:id (only Operator)
-			events.POST("/:id/publish", middleware.AdminOrAbove(), eventHandler.PublishEvent)                         // POST /api/events/:id/publish (only Admin & Super Admin)
-			events.POST("/:id/takedown", middleware.AdminOrAbove(), eventHandler.TakedownEvent)                       // POST /api/events/:id/takedown (only Admin & Super Admin)
+			events.PUT("/:id", middleware.OperatorOnly(), eventHandler.UpdateEvent)                                  // PUT  /api/events/:id (only Operator)
+			events.POST("/:id/publish", middleware.AdminOrAbove(), eventHandler.PublishEvent)                        // POST /api/events/:id/publish (only Admin & Super Admin)
+			events.POST("/:id/takedown", middleware.AdminOrAbove(), eventHandler.TakedownEvent)                      // POST /api/events/:id/takedown (only Admin & Super Admin)
 		}
 
 		// ── Article Management ───────────────────────────────────────────────
@@ -180,21 +179,37 @@ func Setup(
 			articles.POST("/:id/takedown", middleware.AdminOrAbove(), articleHandler.TakedownArticle)                   // POST /api/articles/:id/takedown (only Admin & Super Admin)
 		}
 
+		// ── Homepage Banner Management ────────────────────────────────────────
+		homepage := api.Group("/homepage/banners")
+		homepage.Use(middleware.AuthMiddleware(authSvc))
+		homepage.Use(middleware.RequireRole("admin"))
+		{
+			homepage.GET("", bannerHandler.GetBanners)          // GET    /api/homepage/banners (only Admin)
+			homepage.GET("/:id", bannerHandler.GetBannerByID)    // GET    /api/homepage/banners/:id (only Admin)
+			homepage.POST("", bannerHandler.CreateBanner)        // POST   /api/homepage/banners (only Admin)
+			homepage.PUT("/:id", bannerHandler.UpdateBanner)     // PUT    /api/homepage/banners/:id (only Admin)
+			homepage.DELETE("/:id", bannerHandler.DeleteBanner)  // DELETE /api/homepage/banners/:id (only Admin)
+		}
+
 		// ── Public Content (No Auth Required) ──────────────────────────────
 		publicArticleHandler := handler.NewPublicArticleHandler(articleSvc)
 		public := api.Group("/public")
 		{
 			// News
-			public.GET("/news", publicArticleHandler.GetPublicNews)             // GET /api/public/news
+			public.GET("/news", publicArticleHandler.GetPublicNews)            // GET /api/public/news
 			public.GET("/news/:slug", publicArticleHandler.GetPublicNewsBySlug) // GET /api/public/news/:slug
 
 			// Events
-			public.GET("/events", publicArticleHandler.GetPublicEvents)             // GET /api/public/events
+			public.GET("/events", publicArticleHandler.GetPublicEvents)            // GET /api/public/events
 			public.GET("/events/:slug", publicArticleHandler.GetPublicEventsBySlug) // GET /api/public/events/:slug
 
 			// Articles
 			public.GET("/articles", publicArticleHandler.GetPublicArticles)            // GET /api/public/articles
 			public.GET("/articles/:slug", publicArticleHandler.GetPublicArticleBySlug) // GET /api/public/articles/:slug
+
+			// Homepage Banners & Heroes (alias)
+			public.GET("/homepage/banners", bannerHandler.GetPublicBanners) // GET /api/public/homepage/banners
+			public.GET("/homepage/heroes", bannerHandler.GetPublicBanners)  // GET /api/public/homepage/heroes (alias)
 		}
 	}
 }
