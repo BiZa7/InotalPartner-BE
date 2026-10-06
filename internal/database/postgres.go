@@ -33,6 +33,8 @@ func Connect() {
 		&model.Category{},
 		&model.Tag{},
 		&model.Article{},
+		&model.HomepageBanner{},
+		&model.HomepageBannerButton{},
 	); err != nil {
 		log.Fatalf("[database] AutoMigrate failed: %v", err)
 	}

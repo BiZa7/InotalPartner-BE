@@ -27,17 +27,17 @@ type CreateArticleRequest struct {
 }
 
 type UpdateArticleRequest struct {
-	Title         string  `json:"title" binding:"omitempty,min=1,max=255"`
-	Content       string  `json:"content"`
-	CategoryIDs   *[]uint `json:"category_ids"`
-	CategoryID    uint    `json:"category_id"`
-	TagIDs        *[]uint `json:"tag_ids"`
-	Excerpt       string  `json:"excerpt"`
-	ThumbnailURL  *string `json:"thumbnail_url"`
-	PostType      string  `json:"post_type"`
-	EventDate     *string `json:"event_date"`
-	EventTime     *string `json:"event_time"`
-	EventLocation *string `json:"event_location"`
+	Title         string   `json:"title" binding:"omitempty,min=1,max=255"`
+	Content       string   `json:"content"`
+	CategoryIDs   *[]uint  `json:"category_ids"`
+	CategoryID    uint     `json:"category_id"`
+	TagIDs        *[]uint  `json:"tag_ids"`
+	Excerpt       string   `json:"excerpt"`
+	ThumbnailURL  string   `json:"thumbnail_url"`
+	PostType      string   `json:"post_type"`
+	EventDate     *string  `json:"event_date"`
+	EventTime     *string  `json:"event_time"`
+	EventLocation *string  `json:"event_location"`
 }
 
 type ArticleListResponse struct {
@@ -285,10 +285,6 @@ func (s *ArticleService) UpdateArticleWithPostType(id uint, authorID uint, req U
 		return nil, errors.New("akses ditolak: bukan pemilik artikel")
 	}
 
-	if article.Status != model.ArticleStatusDraft {
-		return nil, errors.New("hanya post berstatus draft yang dapat diedit")
-	}
-
 	// Validasi dan update Title & Slug
 	if req.Title != "" {
 		newTitle := strings.TrimSpace(req.Title)
@@ -320,13 +316,9 @@ func (s *ArticleService) UpdateArticleWithPostType(id uint, authorID uint, req U
 		article.Excerpt = strings.TrimSpace(req.Excerpt)
 	}
 
-	// Update ThumbnailURL jika field dikirim.
-	// Pointer membedakan:
-	// - nil  : thumbnail tidak diubah
-	// - ""   : thumbnail dihapus
-	// - path : thumbnail diganti
-	if req.ThumbnailURL != nil {
-		article.ThumbnailURL = strings.TrimSpace(*req.ThumbnailURL)
+	// Update ThumbnailURL jika dikirim
+	if req.ThumbnailURL != "" {
+		article.ThumbnailURL = strings.TrimSpace(req.ThumbnailURL)
 	}
 
 	// Validasi dan update Categories jika dikirim
