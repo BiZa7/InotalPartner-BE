@@ -29,6 +29,9 @@ func Setup(
 		AllowCredentials: true,
 	}))
 
+	// Static files untuk gambar yang diupload (contoh: http://localhost:8080/uploads/xxx.jpg)
+	r.Static("/uploads", "./uploads")
+
 	// Health check
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "service": "inotal-be"})
