@@ -79,6 +79,18 @@ func (s *HomepageBannerService) GetBannerByID(id uint) (*model.HomepageBanner, e
 
 // CreateBanner membuat record HomepageBanner baru beserta relasi buttons
 func (s *HomepageBannerService) CreateBanner(req CreateBannerRequest) (*model.HomepageBanner, error) {
+	if req.Order < 1 {
+		return nil, errors.New("nomor urut slider harus minimal 1")
+	}
+
+	orderExists, err := s.bannerRepo.OrderExists(req.Order, 0)
+	if err != nil {
+		return nil, err
+	}
+	if orderExists {
+		return nil, errors.New("nomor urut slider sudah digunakan. Silakan pilih nomor urut lain")
+	}
+
 	title := strings.TrimSpace(req.Title)
 	bgImage := strings.TrimSpace(req.BackgroundImage)
 
@@ -123,12 +135,24 @@ func (s *HomepageBannerService) CreateBanner(req CreateBannerRequest) (*model.Ho
 
 // UpdateBanner memperbarui data HomepageBanner dan mereplace list button miliknya
 func (s *HomepageBannerService) UpdateBanner(id uint, req UpdateBannerRequest) (*model.HomepageBanner, error) {
+	if req.Order < 1 {
+		return nil, errors.New("nomor urut slider harus minimal 1")
+	}
+
 	banner, err := s.bannerRepo.FindByID(id)
 	if err != nil {
 		return nil, err
 	}
 	if banner == nil {
 		return nil, errors.New("banner tidak ditemukan")
+	}
+
+	orderExists, err := s.bannerRepo.OrderExists(req.Order, id)
+	if err != nil {
+		return nil, err
+	}
+	if orderExists {
+		return nil, errors.New("nomor urut slider sudah digunakan. Silakan pilih nomor urut lain")
 	}
 
 	banner.Title = strings.TrimSpace(req.Title)

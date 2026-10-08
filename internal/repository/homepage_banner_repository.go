@@ -57,6 +57,23 @@ func (r *HomepageBannerRepository) FindActive() ([]model.HomepageBanner, error) 
 }
 
 // FindByID mencari HomepageBanner berdasarkan ID beserta buttons
+// OrderExists mengecek apakah nomor urut sudah dipakai banner lain.
+// excludeID dipakai saat edit agar banner yang sedang diedit tidak dianggap duplikat.
+func (r *HomepageBannerRepository) OrderExists(order int, excludeID uint) (bool, error) {
+	query := r.db.Model(&model.HomepageBanner{}).Where("\"order\" = ?", order)
+
+	if excludeID > 0 {
+		query = query.Where("id <> ?", excludeID)
+	}
+
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
 func (r *HomepageBannerRepository) FindByID(id uint) (*model.HomepageBanner, error) {
 	var banner model.HomepageBanner
 	err := r.db.
