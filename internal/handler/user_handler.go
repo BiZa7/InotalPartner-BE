@@ -17,12 +17,12 @@ func NewUserHandler(userSvc *service.UserService) *UserHandler {
 	return &UserHandler{userSvc: userSvc}
 }
 
-// GetUsers — GET /api/users?page=1&limit=10
 func (h *UserHandler) GetUsers(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	search := c.Query("search")
 
-	result, err := h.userSvc.GetAll(page, limit)
+	result, err := h.userSvc.GetAll(page, limit, search)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,

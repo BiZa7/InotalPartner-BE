@@ -80,39 +80,27 @@ func (s *HomepageBannerService) GetBannerByID(id uint) (*model.HomepageBanner, e
 // CreateBanner membuat record HomepageBanner baru beserta relasi buttons
 func (s *HomepageBannerService) CreateBanner(req CreateBannerRequest) (*model.HomepageBanner, error) {
 	title := strings.TrimSpace(req.Title)
-	if title == "" {
-		return nil, errors.New("title wajib diisi")
-	}
-
-	subtitle := strings.TrimSpace(req.Subtitle)
-	if subtitle == "" {
-		return nil, errors.New("subtitle wajib diisi")
-	}
-
 	bgImage := strings.TrimSpace(req.BackgroundImage)
-	if bgImage == "" {
-		return nil, errors.New("background_image wajib diisi")
-	}
 
-	isActive := true
+	// Banner baru tidak langsung tampil di Landing Page.
+	isActive := false
 	if req.IsActive != nil {
 		isActive = *req.IsActive
 	}
 
 	buttons := make([]model.HomepageBannerButton, 0, len(req.Buttons))
 	for _, btnReq := range req.Buttons {
-		btnLabel := strings.TrimSpace(btnReq.Label)
-		if btnLabel == "" {
-			return nil, errors.New("label button wajib diisi")
-		}
-		btnURL := strings.TrimSpace(btnReq.URL)
-		if btnURL == "" {
-			return nil, errors.New("url button wajib diisi")
+		label := strings.TrimSpace(btnReq.Label)
+		url := strings.TrimSpace(btnReq.URL)
+
+		// Tombol hanya dibuat jika label DAN URL diisi.
+		if label == "" || url == "" {
+			continue
 		}
 
 		buttons = append(buttons, model.HomepageBannerButton{
-			Label:       btnLabel,
-			URL:         btnURL,
+			Label:       label,
+			URL:         url,
 			Description: strings.TrimSpace(btnReq.Description),
 			Order:       btnReq.Order,
 		})
@@ -120,7 +108,7 @@ func (s *HomepageBannerService) CreateBanner(req CreateBannerRequest) (*model.Ho
 
 	banner := &model.HomepageBanner{
 		Title:           title,
-		Subtitle:        subtitle,
+		Subtitle:        "",
 		BackgroundImage: bgImage,
 		Order:           req.Order,
 		IsActive:        isActive,
@@ -143,24 +131,9 @@ func (s *HomepageBannerService) UpdateBanner(id uint, req UpdateBannerRequest) (
 		return nil, errors.New("banner tidak ditemukan")
 	}
 
-	title := strings.TrimSpace(req.Title)
-	if title == "" {
-		return nil, errors.New("title wajib diisi")
-	}
-
-	subtitle := strings.TrimSpace(req.Subtitle)
-	if subtitle == "" {
-		return nil, errors.New("subtitle wajib diisi")
-	}
-
-	bgImage := strings.TrimSpace(req.BackgroundImage)
-	if bgImage == "" {
-		return nil, errors.New("background_image wajib diisi")
-	}
-
-	banner.Title = title
-	banner.Subtitle = subtitle
-	banner.BackgroundImage = bgImage
+	banner.Title = strings.TrimSpace(req.Title)
+	banner.Subtitle = ""
+	banner.BackgroundImage = strings.TrimSpace(req.BackgroundImage)
 	banner.Order = req.Order
 
 	if req.IsActive != nil {
@@ -169,18 +142,16 @@ func (s *HomepageBannerService) UpdateBanner(id uint, req UpdateBannerRequest) (
 
 	buttons := make([]model.HomepageBannerButton, 0, len(req.Buttons))
 	for _, btnReq := range req.Buttons {
-		btnLabel := strings.TrimSpace(btnReq.Label)
-		if btnLabel == "" {
-			return nil, errors.New("label button wajib diisi")
-		}
-		btnURL := strings.TrimSpace(btnReq.URL)
-		if btnURL == "" {
-			return nil, errors.New("url button wajib diisi")
+		label := strings.TrimSpace(btnReq.Label)
+		url := strings.TrimSpace(btnReq.URL)
+
+		if label == "" || url == "" {
+			continue
 		}
 
 		buttons = append(buttons, model.HomepageBannerButton{
-			Label:       btnLabel,
-			URL:         btnURL,
+			Label:       label,
+			URL:         url,
 			Description: strings.TrimSpace(btnReq.Description),
 			Order:       btnReq.Order,
 		})

@@ -1,13 +1,14 @@
 package service
 
 import (
-    "errors"
-    "fmt"
+	"errors"
+	"fmt"
+	"strings"
 
-    "golang.org/x/crypto/bcrypt"
+	"golang.org/x/crypto/bcrypt"
 
-    "inotal-be/internal/model"
-    "inotal-be/internal/repository"
+	"inotal-be/internal/model"
+	"inotal-be/internal/repository"
 )
 
 // ─── DTOs ─────────────────────────────────────────────────────────────────────
@@ -58,36 +59,50 @@ func NewUserService(userRepo *repository.UserRepository, roleRepo *repository.Ro
 }
 
 // GetAll mengambil semua user dengan pagination
-func (s *UserService) GetAll(page, limit int) (*UserListResponse, error) {
-    if page < 1 {
-        page = 1
-    }
-    if limit < 1 || limit > 100 {
-        limit = 10
-    }
+func (s *UserService) GetAll(page, limit int, search string) (*UserListResponse, error) {
+	if page < 1 {
+		page = 1
+	}
 
-    users, total, err := s.userRepo.FindAll(page, limit)
-    if err != nil {
-        return nil, fmt.Errorf("failed to get users: %w", err)
-    }
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
 
-    publicUsers := make([]PublicUser, len(users))
-    for i, u := range users {
-        publicUsers[i] = toPublicUser(&u)
-    }
+	search = strings.TrimSpace(search)
 
-    totalPages := int(total) / limit
-    if int(total)%limit != 0 {
-        totalPages++
-    }
+	users, total, err := s.userRepo.FindAll(page, limit, search)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get users: %w", err)
+	}
 
-    return &UserListResponse{
-        Data:       publicUsers,
-        Total:      total,
-        Page:       page,
-        Limit:      limit,
-        TotalPages: totalPages,
-    }, nil
+	totalPages := 0
+
+	if total > 0 {
+		totalPages = int((total + int64(limit) - 1) / int64(limit))
+	}
+
+	if totalPages > 0 && page > totalPages {
+		page = totalPages
+
+		users, total, err = s.userRepo.FindAll(page, limit, search)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get users: %w", err)
+		}
+	}
+
+	publicUsers := make([]PublicUser, len(users))
+
+	for i, u := range users {
+		publicUsers[i] = toPublicUser(&u)
+	}
+
+	return &UserListResponse{
+		Data:       publicUsers,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	}, nil
 }
 
 // GetByID mengambil detail user berdasarkan ID
