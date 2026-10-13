@@ -31,6 +31,9 @@ func main() {
 	roleSvc := service.NewRoleService(roleRepo)
 
 	categoryRepo := repository.NewCategoryRepository(database.DB)
+	if err := categoryRepo.SyncArticleCounts(); err != nil {
+		log.Printf("[sync] Warning: Gagal sinkronisasi article_count kategori: %v", err)
+	}
 	categorySvc := service.NewCategoryService(categoryRepo)
 
 	tagRepo := repository.NewTagRepository(database.DB)

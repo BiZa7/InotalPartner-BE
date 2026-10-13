@@ -95,6 +95,40 @@ func (r *CategoryRepository) SlugExistsExcept(slug string, excludeID uint) (bool
 // HasArticles mengecek apakah ada artikel yang menggunakan kategori ini
 func (r *CategoryRepository) HasArticles(categoryID uint) (bool, error) {
 	var count int64
-	err := r.db.Model(&model.Article{}).Where("category_id = ?", categoryID).Count(&count).Error
+	query := `
+		SELECT COUNT(*) FROM (
+			SELECT article_id FROM article_categories WHERE category_id = ?
+			UNION
+			SELECT id AS article_id FROM articles WHERE category_id = ?
+		) sub
+	`
+	err := r.db.Raw(query, categoryID, categoryID).Scan(&count).Error
 	return count > 0, err
+}
+
+// SyncArticleCounts menghitung ulang dan memperbarui categories.article_count
+// untuk seluruh kategori berdasarkan artikel berstatus published dengan post_type news & article.
+func (r *CategoryRepository) SyncArticleCounts() error {
+	query := `
+		UPDATE categories c
+		SET article_count = COALESCE(sub.cnt, 0)
+		FROM (
+			SELECT c2.id, COUNT(DISTINCT a.id) AS cnt
+			FROM categories c2
+			LEFT JOIN (
+				SELECT ac.category_id, a.id
+				FROM articles a
+				JOIN article_categories ac ON a.id = ac.article_id
+				WHERE a.status = 'published' AND a.post_type IN ('news', 'article')
+				UNION
+				SELECT a.category_id, a.id
+				FROM articles a
+				WHERE a.status = 'published' AND a.post_type IN ('news', 'article') 
+				  AND a.category_id IS NOT NULL AND a.category_id > 0
+			) a ON c2.id = a.category_id
+			GROUP BY c2.id
+		) sub
+		WHERE c.id = sub.id;
+	`
+	return r.db.Exec(query).Error
 }

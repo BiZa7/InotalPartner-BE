@@ -34,6 +34,51 @@ func (h *CategoryHandler) GetCategories(c *gin.Context) {
 	})
 }
 
+// GetPublicCategories — GET /api/public/categories (Public, No Auth)
+func (h *CategoryHandler) GetPublicCategories(c *gin.Context) {
+	categories, err := h.categorySvc.GetCategories()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Berhasil mengambil daftar kategori publik",
+		"data":    categories,
+	})
+}
+
+// GetPublicCategory — GET /api/public/categories/:id (Public, No Auth)
+func (h *CategoryHandler) GetPublicCategory(c *gin.Context) {
+	id, err := parseUintParam(c, "id")
+	if err != nil {
+		return
+	}
+
+	category, err := h.categorySvc.GetCategoryByID(id)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if err.Error() == "kategori tidak ditemukan" {
+			status = http.StatusNotFound
+		}
+		c.JSON(status, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Berhasil mengambil data kategori",
+		"data":    category,
+	})
+}
+
 // GetCategory — GET /api/categories/:id
 func (h *CategoryHandler) GetCategory(c *gin.Context) {
 	id, err := parseUintParam(c, "id")

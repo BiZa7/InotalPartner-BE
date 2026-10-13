@@ -241,6 +241,24 @@ func (r *ArticleRepository) FindPublishedByPostType(postType model.PostType, pag
 	return articles, total, err
 }
 
+// FindPublishedPopularByPostType mengambil konten published berdasarkan post_type dengan urutan view_count terbesar
+func (r *ArticleRepository) FindPublishedPopularByPostType(postType model.PostType, limit int) ([]model.Article, error) {
+	var articles []model.Article
+
+	err := r.db.Model(&model.Article{}).
+		Where("status = ? AND post_type = ?", model.ArticleStatusPublished, postType).
+		Preload("Categories").
+		Preload("Category").
+		Preload("Tags").
+		Preload("Author").
+		Preload("Author.Role").
+		Limit(limit).
+		Order("view_count DESC, published_at DESC, id DESC").
+		Find(&articles).Error
+
+	return articles, err
+}
+
 // FindPublishedBySlugAndPostType mengambil artikel published berdasarkan slug dan post_type
 func (r *ArticleRepository) FindPublishedBySlugAndPostType(slug string, postType model.PostType) (*model.Article, error) {
 	var article model.Article
@@ -296,4 +314,28 @@ func (r *ArticleRepository) FindPublishedBySlug(slug string) (*model.Article, er
 		return nil, nil
 	}
 	return &article, err
+}
+
+// IncrementViewCount menambah view_count artikel secara atomik
+func (r *ArticleRepository) IncrementViewCount(id uint) error {
+	return r.db.Model(&model.Article{}).
+		Where("id = ?", id).
+		UpdateColumn("view_count", gorm.Expr("view_count + ?", 1)).Error
+}
+
+// Delete menghapus artikel beserta membersihkan asosiasi Categories dan Tags dalam transaksi
+func (r *ArticleRepository) Delete(id uint) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var article model.Article
+		if err := tx.First(&article, id).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&article).Association("Categories").Clear(); err != nil {
+			return err
+		}
+		if err := tx.Model(&article).Association("Tags").Clear(); err != nil {
+			return err
+		}
+		return tx.Delete(&article).Error
+	})
 }
