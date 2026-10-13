@@ -54,7 +54,47 @@ func (h *PublicArticleHandler) GetPublicArticleBySlug(c *gin.Context) {
 	h.getPublicBySlug(c, model.PostTypeArticle, "Berhasil mengambil data artikel")
 }
 
+// ── POPULAR ──────────────────────────────────────────────────────────────────
+
+// GetPopularNews — GET /api/public/popular/news?limit=5
+func (h *PublicArticleHandler) GetPopularNews(c *gin.Context) {
+	h.getPopularList(c, model.PostTypeNews, "Berhasil mengambil daftar berita terpopuler")
+}
+
+// GetPopularArticles — GET /api/public/popular/articles?limit=5
+func (h *PublicArticleHandler) GetPopularArticles(c *gin.Context) {
+	h.getPopularList(c, model.PostTypeArticle, "Berhasil mengambil daftar artikel terpopuler")
+}
+
 // ── HELPERS ──────────────────────────────────────────────────────────────────
+
+func (h *PublicArticleHandler) getPopularList(c *gin.Context, postType model.PostType, successMsg string) {
+	limit := 5
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if val, err := strconv.Atoi(limitStr); err == nil && val >= 1 {
+			if val > 50 {
+				limit = 50
+			} else {
+				limit = val
+			}
+		}
+	}
+
+	articles, err := h.articleSvc.GetPopularArticlesByPostType(postType, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": successMsg,
+		"data":    articles,
+	})
+}
 
 func (h *PublicArticleHandler) getPublicList(c *gin.Context, postType model.PostType, successMsg string) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))

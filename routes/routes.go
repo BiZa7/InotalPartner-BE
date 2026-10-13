@@ -205,6 +205,10 @@ func Setup(
 			// Homepage Banners & Heroes (alias)
 			public.GET("/homepage/banners", bannerHandler.GetPublicBanners) // GET /api/public/homepage/banners
 			public.GET("/homepage/heroes", bannerHandler.GetPublicBanners)  // GET /api/public/homepage/heroes (alias)
+
+			// Popular Content
+			public.GET("/popular/news", publicArticleHandler.GetPopularNews)         // GET /api/public/popular/news
+			public.GET("/popular/articles", publicArticleHandler.GetPopularArticles) // GET /api/public/popular/articles
 		}
 	}
 }
