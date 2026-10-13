@@ -297,3 +297,27 @@ func (r *ArticleRepository) FindPublishedBySlug(slug string) (*model.Article, er
 	}
 	return &article, err
 }
+
+// IncrementViewCount menambah view_count artikel secara atomik
+func (r *ArticleRepository) IncrementViewCount(id uint) error {
+	return r.db.Model(&model.Article{}).
+		Where("id = ?", id).
+		UpdateColumn("view_count", gorm.Expr("view_count + ?", 1)).Error
+}
+
+// Delete menghapus artikel beserta membersihkan asosiasi Categories dan Tags dalam transaksi
+func (r *ArticleRepository) Delete(id uint) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var article model.Article
+		if err := tx.First(&article, id).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&article).Association("Categories").Clear(); err != nil {
+			return err
+		}
+		if err := tx.Model(&article).Association("Tags").Clear(); err != nil {
+			return err
+		}
+		return tx.Delete(&article).Error
+	})
+}

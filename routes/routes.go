@@ -114,34 +114,22 @@ func Setup(
 		categories := api.Group("/categories")
 		categories.Use(middleware.AuthMiddleware(authSvc))
 		{
-			operatorCategories := categories.Group("")
-			operatorCategories.Use(middleware.OperatorOnly())
-			{
-				operatorCategories.GET("", categoryHandler.GetCategories)      // GET    /api/categories
-				operatorCategories.POST("", categoryHandler.CreateCategory)    // POST   /api/categories
-				operatorCategories.GET("/:id", categoryHandler.GetCategory)    // GET    /api/categories/:id
-				operatorCategories.PUT("/:id", categoryHandler.UpdateCategory) // PUT    /api/categories/:id
-			}
-
-			// DELETE category ❌ (Operator, Admin, SuperAdmin, Guest tidak punya akses delete)
-			categories.DELETE("/:id", middleware.DenyAll(), categoryHandler.DeleteCategory)
+			categories.GET("", middleware.RequireRole("operator", "admin", "super_admin"), categoryHandler.GetCategories)      // GET    /api/categories
+			categories.POST("", middleware.RequireRole("operator", "admin", "super_admin"), categoryHandler.CreateCategory)    // POST   /api/categories
+			categories.GET("/:id", middleware.RequireRole("operator", "admin", "super_admin"), categoryHandler.GetCategory)    // GET    /api/categories/:id
+			categories.PUT("/:id", middleware.AdminOrAbove(), categoryHandler.UpdateCategory)                                    // PUT    /api/categories/:id
+			categories.DELETE("/:id", middleware.AdminOrAbove(), categoryHandler.DeleteCategory)                                // DELETE /api/categories/:id
 		}
 
 		// ── Tags ────────────────────────────────────────────────────────────
 		tags := api.Group("/tags")
 		tags.Use(middleware.AuthMiddleware(authSvc))
 		{
-			operatorTags := tags.Group("")
-			operatorTags.Use(middleware.OperatorOnly())
-			{
-				operatorTags.GET("", tagHandler.GetTags)       // GET    /api/tags
-				operatorTags.POST("", tagHandler.CreateTag)    // POST   /api/tags
-				operatorTags.GET("/:id", tagHandler.GetTag)    // GET    /api/tags/:id
-				operatorTags.PUT("/:id", tagHandler.UpdateTag) // PUT    /api/tags/:id
-			}
-
-			// DELETE tag ❌ (Operator, Admin, SuperAdmin, Guest tidak punya akses delete)
-			tags.DELETE("/:id", middleware.DenyAll(), tagHandler.DeleteTag)
+			tags.GET("", middleware.RequireRole("operator", "admin", "super_admin"), tagHandler.GetTags)       // GET    /api/tags
+			tags.POST("", middleware.RequireRole("operator", "admin", "super_admin"), tagHandler.CreateTag)    // POST   /api/tags
+			tags.GET("/:id", middleware.RequireRole("operator", "admin", "super_admin"), tagHandler.GetTag)    // GET    /api/tags/:id
+			tags.PUT("/:id", middleware.AdminOrAbove(), tagHandler.UpdateTag)                                    // PUT    /api/tags/:id
+			tags.DELETE("/:id", middleware.AdminOrAbove(), tagHandler.DeleteTag)                                // DELETE /api/tags/:id
 		}
 
 		// ── News Management ──────────────────────────────────────────────────
@@ -152,7 +140,7 @@ func Setup(
 			news.GET("", middleware.RequireRole("operator", "admin", "super_admin"), newsHandler.GetNews)       // GET  /api/news
 			news.POST("", middleware.OperatorOnly(), newsHandler.CreateNews)                                     // POST /api/news (only Operator)
 			news.GET("/:id", middleware.RequireRole("operator", "admin", "super_admin"), newsHandler.GetNewsByID) // GET  /api/news/:id
-			news.PUT("/:id", middleware.OperatorOnly(), newsHandler.UpdateNews)                                  // PUT  /api/news/:id (only Operator)
+			news.PUT("/:id", middleware.RequireRole("operator", "admin"), newsHandler.UpdateNews)                  // PUT  /api/news/:id (Operator & Admin)
 			news.POST("/:id/publish", middleware.AdminOrAbove(), newsHandler.PublishNews)                        // POST /api/news/:id/publish (only Admin & Super Admin)
 			news.POST("/:id/takedown", middleware.AdminOrAbove(), newsHandler.TakedownNews)                      // POST /api/news/:id/takedown (only Admin & Super Admin)
 		}
@@ -165,7 +153,7 @@ func Setup(
 			events.GET("", middleware.RequireRole("operator", "admin", "super_admin"), eventHandler.GetEvents)       // GET  /api/events
 			events.POST("", middleware.OperatorOnly(), eventHandler.CreateEvent)                                     // POST /api/events (only Operator)
 			events.GET("/:id", middleware.RequireRole("operator", "admin", "super_admin"), eventHandler.GetEventByID) // GET  /api/events/:id
-			events.PUT("/:id", middleware.OperatorOnly(), eventHandler.UpdateEvent)                                  // PUT  /api/events/:id (only Operator)
+			events.PUT("/:id", middleware.RequireRole("operator", "admin"), eventHandler.UpdateEvent)                  // PUT  /api/events/:id (Operator & Admin)
 			events.POST("/:id/publish", middleware.AdminOrAbove(), eventHandler.PublishEvent)                        // POST /api/events/:id/publish (only Admin & Super Admin)
 			events.POST("/:id/takedown", middleware.AdminOrAbove(), eventHandler.TakedownEvent)                      // POST /api/events/:id/takedown (only Admin & Super Admin)
 		}
@@ -177,7 +165,7 @@ func Setup(
 			articles.GET("", middleware.RequireRole("operator", "admin", "super_admin"), articleHandler.GetArticles)    // GET  /api/articles
 			articles.POST("", middleware.OperatorOnly(), articleHandler.CreateArticle)                                  // POST /api/articles (only Operator)
 			articles.GET("/:id", middleware.RequireRole("operator", "admin", "super_admin"), articleHandler.GetArticle) // GET  /api/articles/:id
-			articles.PUT("/:id", middleware.OperatorOnly(), articleHandler.UpdateArticle)                               // PUT  /api/articles/:id (only Operator)
+			articles.PUT("/:id", middleware.RequireRole("operator", "admin"), articleHandler.UpdateArticle)               // PUT  /api/articles/:id (Operator & Admin)
 			articles.POST("/:id/publish", middleware.AdminOrAbove(), articleHandler.PublishArticle)                     // POST /api/articles/:id/publish (only Admin & Super Admin)
 			articles.POST("/:id/takedown", middleware.AdminOrAbove(), articleHandler.TakedownArticle)                   // POST /api/articles/:id/takedown (only Admin & Super Admin)
 		}
@@ -198,6 +186,10 @@ func Setup(
 		publicArticleHandler := handler.NewPublicArticleHandler(articleSvc)
 		public := api.Group("/public")
 		{
+			// Categories
+			public.GET("/categories", categoryHandler.GetPublicCategories)     // GET /api/public/categories
+			public.GET("/categories/:id", categoryHandler.GetPublicCategory)    // GET /api/public/categories/:id
+
 			// News
 			public.GET("/news", publicArticleHandler.GetPublicNews)            // GET /api/public/news
 			public.GET("/news/:slug", publicArticleHandler.GetPublicNewsBySlug) // GET /api/public/news/:slug
