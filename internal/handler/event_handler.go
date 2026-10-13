@@ -155,6 +155,9 @@ func (h *EventHandler) UpdateEvent(c *gin.Context) {
 	}
 	userID := userIDVal.(uint)
 
+	userRoleVal, _ := c.Get("user_role")
+	userRole, _ := userRoleVal.(string)
+
 	var req service.UpdateArticleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -165,15 +168,15 @@ func (h *EventHandler) UpdateEvent(c *gin.Context) {
 		return
 	}
 
-	article, err := h.articleSvc.UpdateArticleWithPostType(id, userID, req, model.PostTypeEvent)
+	article, err := h.articleSvc.UpdateArticleWithPostType(id, userID, userRole, req, model.PostTypeEvent)
 	if err != nil {
 		status := http.StatusInternalServerError
 		switch err.Error() {
 		case "artikel tidak ditemukan":
 			status = http.StatusNotFound
-		case "akses ditolak: bukan pemilik artikel":
+		case "akses ditolak: bukan pemilik artikel", "akses ditolak: super admin tidak memiliki izin untuk mengedit konten", "akses ditolak: hak akses tidak mencukupi":
 			status = http.StatusForbidden
-		case "kategori tidak ditemukan", "satu atau lebih kategori tidak ditemukan", "satu atau lebih tag tidak ditemukan", "judul artikel tidak valid untuk dijadikan slug":
+		case "hanya artikel berstatus draft yang dapat diedit", "hanya artikel berstatus draft atau taken_down yang dapat diedit", "kategori tidak ditemukan", "satu atau lebih kategori tidak ditemukan", "satu atau lebih tag tidak ditemukan", "judul artikel tidak valid untuk dijadikan slug":
 			status = http.StatusBadRequest
 		}
 		c.JSON(status, gin.H{

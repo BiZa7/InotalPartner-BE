@@ -35,6 +35,9 @@ type Article struct {
 	Excerpt      string `gorm:"type:text"                          json:"excerpt,omitempty"`
 	ThumbnailURL string `gorm:"type:text"                          json:"thumbnail_url,omitempty"`
 
+	// Metrics
+	ViewCount uint64 `gorm:"default:0;not null" json:"view_count"`
+
 	// Event Details (Nullable, only used for post_type = event)
 	EventDate     *string `gorm:"type:date" json:"event_date,omitempty"`
 	EventTime     *string `gorm:"type:time" json:"event_time,omitempty"`

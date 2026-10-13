@@ -9,6 +9,7 @@ type Category struct {
 	CreatedAt time.Time `                                          json:"created_at"`
 	UpdatedAt time.Time `                                          json:"updated_at"`
 
-	Name string `gorm:"type:varchar(100);uniqueIndex;not null" json:"name"`
-	Slug string `gorm:"type:varchar(100);uniqueIndex;not null" json:"slug"`
+	Name         string `gorm:"type:varchar(100);uniqueIndex;not null" json:"name"`
+	Slug         string `gorm:"type:varchar(100);uniqueIndex;not null" json:"slug"`
+	ArticleCount int    `gorm:"default:0;not null"                     json:"article_count"`
 }

@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -271,7 +272,7 @@ func (s *ArticleService) CreateArticle(authorID uint, req CreateArticleRequest) 
 }
 
 // UpdateArticleWithPostType memperbarui artikel dengan tipe spesifik (PostType tidak boleh diubah)
-func (s *ArticleService) UpdateArticleWithPostType(id uint, authorID uint, req UpdateArticleRequest, expectedPostType model.PostType) (*model.Article, error) {
+func (s *ArticleService) UpdateArticleWithPostType(id uint, userID uint, userRole string, req UpdateArticleRequest, expectedPostType model.PostType) (*model.Article, error) {
 	article, err := s.articleRepo.FindByIDAndPostType(id, expectedPostType)
 	if err != nil {
 		return nil, fmt.Errorf("database error: %w", err)
@@ -280,9 +281,27 @@ func (s *ArticleService) UpdateArticleWithPostType(id uint, authorID uint, req U
 		return nil, errors.New("artikel tidak ditemukan")
 	}
 
-	// Ownership check (Hanya pemilik artikel)
-	if article.AuthorID != authorID {
-		return nil, errors.New("akses ditolak: bukan pemilik artikel")
+	// Permission & Ownership check:
+	switch userRole {
+	case "operator":
+		// Operator hanya boleh mengedit draft miliknya sendiri
+		if article.AuthorID != userID {
+			return nil, errors.New("akses ditolak: bukan pemilik artikel")
+		}
+		if article.Status != model.ArticleStatusDraft {
+			return nil, errors.New("hanya artikel berstatus draft yang dapat diedit")
+		}
+	case "admin":
+		// Admin boleh mengedit draft & taken_down milik Operator mana pun.
+		// PENTING: artikel published TIDAK boleh diedit langsung (harus ditakedown terlebih dahulu).
+		// PENTING: author_id HARUS tetap milik Operator asli dan status HARUS tetap (tidak boleh diubah saat edit).
+		if article.Status != model.ArticleStatusDraft && article.Status != model.ArticleStatusTakenDown {
+			return nil, errors.New("hanya artikel berstatus draft atau taken_down yang dapat diedit")
+		}
+	case "super_admin":
+		return nil, errors.New("akses ditolak: super admin tidak memiliki izin untuk mengedit konten")
+	default:
+		return nil, errors.New("akses ditolak: hak akses tidak mencukupi")
 	}
 
 	// Validasi dan update Title & Slug
@@ -410,11 +429,18 @@ func (s *ArticleService) UpdateArticleWithPostType(id uint, authorID uint, req U
 		return nil, fmt.Errorf("gagal memperbarui artikel: %w", err)
 	}
 
+	// Sinkronisasi article_count kategori jika artikel yang diupdate berstatus published dan kategorinya berubah
+	if article.Status == model.ArticleStatusPublished && updateCategories && (article.PostType == model.PostTypeNews || article.PostType == model.PostTypeArticle) {
+		if err := s.categoryRepo.SyncArticleCounts(); err != nil {
+			log.Printf("[article_service] Warning: Gagal sinkronisasi article_count kategori setelah update: %v", err)
+		}
+	}
+
 	return s.articleRepo.FindByID(id)
 }
 
 // UpdateArticle memperbarui artikel (default/legacy)
-func (s *ArticleService) UpdateArticle(id uint, authorID uint, req UpdateArticleRequest) (*model.Article, error) {
+func (s *ArticleService) UpdateArticle(id uint, userID uint, userRole string, req UpdateArticleRequest) (*model.Article, error) {
 	existing, err := s.articleRepo.FindByID(id)
 	if err != nil {
 		return nil, fmt.Errorf("database error: %w", err)
@@ -422,7 +448,7 @@ func (s *ArticleService) UpdateArticle(id uint, authorID uint, req UpdateArticle
 	if existing == nil {
 		return nil, errors.New("artikel tidak ditemukan")
 	}
-	return s.UpdateArticleWithPostType(id, authorID, req, existing.PostType)
+	return s.UpdateArticleWithPostType(id, userID, userRole, req, existing.PostType)
 }
 
 // PublishArticleWithPostType mem-publish artikel berdasarkan ID dan post_type
@@ -435,12 +461,9 @@ func (s *ArticleService) PublishArticleWithPostType(id uint, expectedPostType mo
 		return nil, errors.New("artikel tidak ditemukan")
 	}
 
-	// Status check
-	switch article.Status {
-	case model.ArticleStatusPublished:
+	// Status check: hanya artikel yang sudah published yang ditolak
+	if article.Status == model.ArticleStatusPublished {
 		return nil, errors.New("artikel sudah dipublish")
-	case model.ArticleStatusTakenDown:
-		return nil, errors.New("artikel yang sudah diturunkan tidak dapat dipublish kembali")
 	}
 
 	// Set publish
@@ -450,6 +473,13 @@ func (s *ArticleService) PublishArticleWithPostType(id uint, expectedPostType mo
 
 	if err := s.articleRepo.Save(article); err != nil {
 		return nil, fmt.Errorf("gagal mempublish artikel: %w", err)
+	}
+
+	// Perbarui article_count pada kategori terkait (hanya untuk news & article, event tidak dihitung)
+	if expectedPostType == model.PostTypeNews || expectedPostType == model.PostTypeArticle {
+		if err := s.categoryRepo.SyncArticleCounts(); err != nil {
+			log.Printf("[article_service] Warning: Gagal sinkronisasi article_count kategori setelah publish: %v", err)
+		}
 	}
 
 	return s.articleRepo.FindByID(id)
@@ -493,6 +523,13 @@ func (s *ArticleService) TakedownArticleWithPostType(id uint, adminUserID uint, 
 		return nil, fmt.Errorf("gagal men-takedown artikel: %w", err)
 	}
 
+	// Perbarui article_count pada kategori terkait (hanya untuk news & article, event tidak dihitung)
+	if expectedPostType == model.PostTypeNews || expectedPostType == model.PostTypeArticle {
+		if err := s.categoryRepo.SyncArticleCounts(); err != nil {
+			log.Printf("[article_service] Warning: Gagal sinkronisasi article_count kategori setelah takedown: %v", err)
+		}
+	}
+
 	return s.articleRepo.FindByID(id)
 }
 
@@ -506,6 +543,31 @@ func (s *ArticleService) TakedownArticle(id uint, adminUserID uint) (*model.Arti
 		return nil, errors.New("artikel tidak ditemukan")
 	}
 	return s.TakedownArticleWithPostType(id, adminUserID, existing.PostType)
+}
+
+// DeleteArticle menghapus artikel dan memperbarui categories.article_count jika yang dihapus berstatus published
+func (s *ArticleService) DeleteArticle(id uint) error {
+	existing, err := s.articleRepo.FindByID(id)
+	if err != nil {
+		return fmt.Errorf("database error: %w", err)
+	}
+	if existing == nil {
+		return errors.New("artikel tidak ditemukan")
+	}
+
+	wasPublished := existing.Status == model.ArticleStatusPublished && (existing.PostType == model.PostTypeNews || existing.PostType == model.PostTypeArticle)
+
+	if err := s.articleRepo.Delete(id); err != nil {
+		return fmt.Errorf("gagal menghapus artikel: %w", err)
+	}
+
+	if wasPublished {
+		if err := s.categoryRepo.SyncArticleCounts(); err != nil {
+			log.Printf("[article_service] Warning: Gagal sinkronisasi article_count kategori setelah delete: %v", err)
+		}
+	}
+
+	return nil
 }
 
 // ─── Public (No Auth) ─────────────────────────────────────────────────────────
@@ -547,6 +609,16 @@ func (s *ArticleService) GetPublishedArticleBySlugAndPostType(slug string, postT
 	if article == nil {
 		return nil, errors.New("artikel tidak ditemukan")
 	}
+
+	// Increment view count secara atomik hanya untuk news dan article (event tidak dihitung)
+	if postType == model.PostTypeNews || postType == model.PostTypeArticle {
+		if err := s.articleRepo.IncrementViewCount(article.ID); err != nil {
+			log.Printf("[article_service] Warning: Gagal increment view_count artikel ID %d: %v", article.ID, err)
+		} else {
+			article.ViewCount++
+		}
+	}
+
 	return article, nil
 }
 

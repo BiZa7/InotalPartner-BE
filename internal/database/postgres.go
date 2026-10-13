@@ -66,6 +66,42 @@ func Connect() {
 		log.Printf("[database] Warning: Failed to alter event_time column type: %v", err)
 	}
 
+	// Inisialisasi default view_count = 0 untuk artikel existing jika NULL
+	updateViewCountQuery := `
+		UPDATE articles SET view_count = 0 WHERE view_count IS NULL;
+	`
+	if err := db.Exec(updateViewCountQuery).Error; err != nil {
+		log.Printf("[database] Warning: Failed to set default view_count for existing articles: %v", err)
+	}
+
+	// Sinkronisasi data awal article_count pada tabel categories berdasarkan konten published (news & article)
+	syncCategoryArticleCountQuery := `
+		UPDATE categories SET article_count = 0 WHERE article_count IS NULL;
+
+		UPDATE categories c
+		SET article_count = COALESCE(sub.cnt, 0)
+		FROM (
+			SELECT c2.id, COUNT(DISTINCT a.id) AS cnt
+			FROM categories c2
+			LEFT JOIN (
+				SELECT ac.category_id, a.id
+				FROM articles a
+				JOIN article_categories ac ON a.id = ac.article_id
+				WHERE a.status = 'published' AND a.post_type IN ('news', 'article')
+				UNION
+				SELECT a.category_id, a.id
+				FROM articles a
+				WHERE a.status = 'published' AND a.post_type IN ('news', 'article') 
+				  AND a.category_id IS NOT NULL AND a.category_id > 0
+			) a ON c2.id = a.category_id
+			GROUP BY c2.id
+		) sub
+		WHERE c.id = sub.id;
+	`
+	if err := db.Exec(syncCategoryArticleCountQuery).Error; err != nil {
+		log.Printf("[database] Warning: Failed to sync initial category article_count: %v", err)
+	}
+
 	log.Println("[database] Connected and migrated successfully")
 	DB = db
 }
