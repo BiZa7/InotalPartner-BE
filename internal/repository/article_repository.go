@@ -241,6 +241,24 @@ func (r *ArticleRepository) FindPublishedByPostType(postType model.PostType, pag
 	return articles, total, err
 }
 
+// FindPublishedPopularByPostType mengambil konten published berdasarkan post_type dengan urutan view_count terbesar
+func (r *ArticleRepository) FindPublishedPopularByPostType(postType model.PostType, limit int) ([]model.Article, error) {
+	var articles []model.Article
+
+	err := r.db.Model(&model.Article{}).
+		Where("status = ? AND post_type = ?", model.ArticleStatusPublished, postType).
+		Preload("Categories").
+		Preload("Category").
+		Preload("Tags").
+		Preload("Author").
+		Preload("Author.Role").
+		Limit(limit).
+		Order("view_count DESC, published_at DESC, id DESC").
+		Find(&articles).Error
+
+	return articles, err
+}
+
 // FindPublishedBySlugAndPostType mengambil artikel published berdasarkan slug dan post_type
 func (r *ArticleRepository) FindPublishedBySlugAndPostType(slug string, postType model.PostType) (*model.Article, error) {
 	var article model.Article

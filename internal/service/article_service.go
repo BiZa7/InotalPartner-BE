@@ -632,6 +632,18 @@ func (s *ArticleService) GetPublishedArticleBySlug(slug string) (*model.Article,
 	return s.GetPublishedArticleBySlugAndPostType(slug, model.PostTypeArticle)
 }
 
+// GetPopularArticlesByPostType mengambil daftar konten published terpopuler berdasarkan post_type dan limit
+func (s *ArticleService) GetPopularArticlesByPostType(postType model.PostType, limit int) ([]model.Article, error) {
+	if limit < 1 {
+		limit = 5
+	}
+	if limit > 50 {
+		limit = 50
+	}
+
+	return s.articleRepo.FindPublishedPopularByPostType(postType, limit)
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 // resolvePostType mengkonversi string post_type dari request menjadi model.PostType.
