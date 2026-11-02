@@ -19,6 +19,15 @@ func Setup(
 	tagSvc *service.TagService,
 	articleSvc *service.ArticleService,
 	bannerSvc *service.HomepageBannerService,
+	testimonialSvc *service.TestimonialService,
+	aboutSettingSvc *service.AboutPageSettingService,
+	teamMemberSvc *service.TeamMemberService,
+	aboutVideoSvc *service.AboutVideoService,
+	aboutFAQSvc *service.AboutFAQService,
+	aboutVideoSettingSvc *service.AboutVideoSettingService,
+	aboutVideoHighlightSvc *service.AboutVideoHighlightService,
+	aboutStatisticSvc *service.AboutStatisticService,
+	pageBannerSvc *service.PageBannerService,
 ) {
 	// CORS
 	r.Use(cors.New(cors.Config{
@@ -45,6 +54,14 @@ func Setup(
 	tagHandler := handler.NewTagHandler(tagSvc)
 	articleHandler := handler.NewArticleHandler(articleSvc)
 	bannerHandler := handler.NewHomepageBannerHandler(bannerSvc)
+	testimonialHandler := handler.NewTestimonialHandler(testimonialSvc)
+	aboutHandler := handler.NewAboutHandler(aboutSettingSvc, teamMemberSvc)
+	aboutVideoHandler := handler.NewAboutVideoHandler(aboutVideoSvc)
+	aboutFAQHandler := handler.NewAboutFAQHandler(aboutFAQSvc)
+	aboutVideoSettingHandler := handler.NewAboutVideoSettingHandler(aboutVideoSettingSvc)
+	aboutVideoHighlightHandler := handler.NewAboutVideoHighlightHandler(aboutVideoHighlightSvc)
+	aboutStatisticHandler := handler.NewAboutStatisticHandler(aboutStatisticSvc)
+	pageBannerHandler := handler.NewPageBannerHandler(pageBannerSvc)
 
 	// API v1
 	api := r.Group("/api")
@@ -182,6 +199,78 @@ func Setup(
 			homepage.DELETE("/:id", bannerHandler.DeleteBanner)  // DELETE /api/homepage/banners/:id (only Admin)
 		}
 
+		// ── Testimonial Management (Admin & Super Admin) ──────────────────────
+		testimonials := api.Group("/testimonials")
+		testimonials.Use(middleware.AuthMiddleware(authSvc))
+		testimonials.Use(middleware.AdminOrAbove())
+		{
+			testimonials.GET("", testimonialHandler.GetTestimonials)          // GET    /api/testimonials
+			testimonials.GET("/:id", testimonialHandler.GetTestimonialByID)   // GET    /api/testimonials/:id
+			testimonials.POST("", testimonialHandler.CreateTestimonial)       // POST   /api/testimonials
+			testimonials.PUT("/:id", testimonialHandler.UpdateTestimonial)    // PUT    /api/testimonials/:id
+			testimonials.DELETE("/:id", testimonialHandler.DeleteTestimonial) // DELETE /api/testimonials/:id
+		}
+
+		// ── About Us Management (Admin & Super Admin) ────────────────────────
+		about := api.Group("/about")
+		about.Use(middleware.AuthMiddleware(authSvc))
+		about.Use(middleware.AdminOrAbove())
+		{
+			// Setting judul halaman Tentang
+			about.GET("", aboutHandler.GetActiveSetting)       // GET /api/about
+			about.PUT("", aboutHandler.SaveActiveSetting)      // PUT /api/about
+
+			// Anggota Tim
+			about.GET("/team", aboutHandler.GetTeamMembers)         // GET    /api/about/team
+			about.POST("/team", aboutHandler.CreateTeamMember)       // POST   /api/about/team
+			about.GET("/team/:id", aboutHandler.GetTeamMemberByID)   // GET    /api/about/team/:id
+			about.PUT("/team/:id", aboutHandler.UpdateTeamMember)    // PUT    /api/about/team/:id
+			about.DELETE("/team/:id", aboutHandler.DeleteTeamMember) // DELETE /api/about/team/:id
+
+			// FAQ
+			about.GET("/faqs", aboutFAQHandler.GetFAQs)         // GET    /api/about/faqs
+			about.POST("/faqs", aboutFAQHandler.CreateFAQ)       // POST   /api/about/faqs
+			about.GET("/faqs/:id", aboutFAQHandler.GetFAQByID)   // GET    /api/about/faqs/:id
+			about.PUT("/faqs/:id", aboutFAQHandler.UpdateFAQ)    // PUT    /api/about/faqs/:id
+			about.DELETE("/faqs/:id", aboutFAQHandler.DeleteFAQ) // DELETE /api/about/faqs/:id
+
+			// Video Profil Perusahaan
+			about.GET("/video", aboutVideoHandler.GetVideos)         // GET    /api/about/video
+			about.POST("/video", aboutVideoHandler.CreateVideo)       // POST   /api/about/video
+			about.GET("/video/:id", aboutVideoHandler.GetVideoByID)   // GET    /api/about/video/:id
+			about.PUT("/video/:id", aboutVideoHandler.UpdateVideo)    // PUT    /api/about/video/:id
+			about.DELETE("/video/:id", aboutVideoHandler.DeleteVideo) // DELETE /api/about/video/:id
+
+			// Pengaturan Section Video Profil
+			about.GET("/video-setting", aboutVideoSettingHandler.GetSetting) // GET /api/about/video-setting
+			about.PUT("/video-setting", aboutVideoSettingHandler.SaveSetting) // PUT /api/about/video-setting
+
+			// Highlight Video Profil
+			about.GET("/video-highlights", aboutVideoHighlightHandler.GetHighlights)         // GET    /api/about/video-highlights
+			about.POST("/video-highlights", aboutVideoHighlightHandler.CreateHighlight)       // POST   /api/about/video-highlights
+			about.GET("/video-highlights/:id", aboutVideoHighlightHandler.GetHighlightByID)   // GET    /api/about/video-highlights/:id
+			about.PUT("/video-highlights/:id", aboutVideoHighlightHandler.UpdateHighlight)    // PUT    /api/about/video-highlights/:id
+			about.DELETE("/video-highlights/:id", aboutVideoHighlightHandler.DeleteHighlight) // DELETE /api/about/video-highlights/:id
+
+			// Statistik Tentang Kami
+			about.GET("/statistics", aboutStatisticHandler.GetAllStatistics)         // GET    /api/about/statistics
+			about.POST("/statistics", aboutStatisticHandler.CreateStatistic)        // POST   /api/about/statistics
+			about.GET("/statistics/:id", aboutStatisticHandler.GetStatisticByID)    // GET    /api/about/statistics/:id
+			about.PUT("/statistics/:id", aboutStatisticHandler.UpdateStatistic)     // PUT    /api/about/statistics/:id
+			about.DELETE("/statistics/:id", aboutStatisticHandler.DeleteStatistic)  // DELETE /api/about/statistics/:id
+		}
+
+		// ── Page Hero Banners Management (Admin & Super Admin) ────────────────
+		pageBanners := api.Group("/page-banners")
+		pageBanners.Use(middleware.AuthMiddleware(authSvc))
+		pageBanners.Use(middleware.AdminOrAbove())
+		{
+			pageBanners.GET("/:page_type", pageBannerHandler.GetBanner)       // GET    /api/page-banners/:page_type
+			pageBanners.POST("/:page_type", pageBannerHandler.CreateBanner)   // POST   /api/page-banners/:page_type
+			pageBanners.PUT("/:page_type", pageBannerHandler.UpdateBanner)    // PUT    /api/page-banners/:page_type
+			pageBanners.DELETE("/:page_type", pageBannerHandler.DeleteBanner) // DELETE /api/page-banners/:page_type
+		}
+
 		// ── Public Content (No Auth Required) ──────────────────────────────
 		publicArticleHandler := handler.NewPublicArticleHandler(articleSvc)
 		public := api.Group("/public")
@@ -205,6 +294,21 @@ func Setup(
 			// Homepage Banners & Heroes (alias)
 			public.GET("/homepage/banners", bannerHandler.GetPublicBanners) // GET /api/public/homepage/banners
 			public.GET("/homepage/heroes", bannerHandler.GetPublicBanners)  // GET /api/public/homepage/heroes (alias)
+
+			// About Us
+			public.GET("/about", aboutHandler.GetPublicAboutSetting)       // GET /api/public/about
+			public.GET("/about/team", aboutHandler.GetPublicTeamMembers)   // GET /api/public/about/team
+			public.GET("/about/video", aboutVideoHandler.GetPublicVideo)   // GET /api/public/about/video
+			public.GET("/about/faqs", aboutFAQHandler.GetPublicFAQs)       // GET /api/public/about/faqs
+			public.GET("/about/video-setting", aboutVideoSettingHandler.GetPublicSetting)       // GET /api/public/about/video-setting
+			public.GET("/about/video-highlights", aboutVideoHighlightHandler.GetPublicHighlights) // GET /api/public/about/video-highlights
+			public.GET("/about/statistics", aboutStatisticHandler.GetPublicStatistics) // GET /api/public/about/statistics
+
+			// Page Hero Banners (about, event, news, contact)
+			public.GET("/page-banners/:page_type", pageBannerHandler.GetPublicBanner) // GET /api/public/page-banners/:page_type
+
+			// Testimonials
+			public.GET("/testimonials", testimonialHandler.GetPublicTestimonials) // GET /api/public/testimonials
 
 			// Popular Content
 			public.GET("/popular/news", publicArticleHandler.GetPopularNews)         // GET /api/public/popular/news

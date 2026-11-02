@@ -35,6 +35,15 @@ func Connect() {
 		&model.Article{},
 		&model.HomepageBanner{},
 		&model.HomepageBannerButton{},
+		&model.Testimonial{},
+		&model.AboutPageSetting{},
+		&model.TeamMember{},
+		&model.AboutVideo{},
+		&model.AboutFAQ{},
+		&model.AboutVideoSetting{},
+		&model.AboutVideoHighlight{},
+		&model.AboutStatistic{},
+		&model.PageBanner{},
 	); err != nil {
 		log.Fatalf("[database] AutoMigrate failed: %v", err)
 	}
@@ -64,6 +73,22 @@ func Connect() {
 	`
 	if err := db.Exec(alterEventTimeQuery).Error; err != nil {
 		log.Printf("[database] Warning: Failed to alter event_time column type: %v", err)
+	}
+
+	// Pastikan kolom team_title ada pada about_page_settings
+	alterAboutTeamTitleQuery := `
+		DO $$ 
+		BEGIN 
+			IF NOT EXISTS (
+				SELECT 1 FROM information_schema.columns 
+				WHERE table_name = 'about_page_settings' AND column_name = 'team_title'
+			) THEN 
+				ALTER TABLE about_page_settings ADD COLUMN team_title varchar(255) NOT NULL DEFAULT '';
+			END IF;
+		END $$;
+	`
+	if err := db.Exec(alterAboutTeamTitleQuery).Error; err != nil {
+		log.Printf("[database] Warning: Failed to ensure team_title column in about_page_settings: %v", err)
 	}
 
 	// Inisialisasi default view_count = 0 untuk artikel existing jika NULL
