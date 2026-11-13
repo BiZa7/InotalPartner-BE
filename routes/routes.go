@@ -28,6 +28,16 @@ func Setup(
 	aboutVideoHighlightSvc *service.AboutVideoHighlightService,
 	aboutStatisticSvc *service.AboutStatisticService,
 	pageBannerSvc *service.PageBannerService,
+	homepageReasonSvc *service.HomepageReasonService,
+	homeCTASvc *service.HomeCTAService,
+	partnershipSettingSvc *service.PartnershipSettingService,
+	partnershipImageSvc *service.PartnershipImageService,
+	partnershipServiceSvc *service.PartnershipServiceService,
+	aboutIntroSettingSvc *service.AboutIntroSettingService,
+	aboutIntroMetricSvc *service.AboutIntroMetricService,
+	aboutIntroPointSvc *service.AboutIntroPointService,
+	homepageServicesDocSvc *service.HomepageServicesUpsertService,
+	aboutIntroDocSvc *service.AboutIntroUpsertService,
 ) {
 	// CORS
 	r.Use(cors.New(cors.Config{
@@ -62,6 +72,16 @@ func Setup(
 	aboutVideoHighlightHandler := handler.NewAboutVideoHighlightHandler(aboutVideoHighlightSvc)
 	aboutStatisticHandler := handler.NewAboutStatisticHandler(aboutStatisticSvc)
 	pageBannerHandler := handler.NewPageBannerHandler(pageBannerSvc)
+	homepageReasonHandler := handler.NewHomepageReasonHandler(homepageReasonSvc)
+	homeCTAHandler := handler.NewHomeCTAHandler(homeCTASvc)
+	partnershipSettingHandler := handler.NewPartnershipSettingHandler(partnershipSettingSvc)
+	partnershipImageHandler := handler.NewPartnershipImageHandler(partnershipImageSvc)
+	partnershipServiceHandler := handler.NewPartnershipServiceHandler(partnershipServiceSvc)
+	aboutIntroSettingHandler := handler.NewAboutIntroSettingHandler(aboutIntroSettingSvc)
+	aboutIntroMetricHandler := handler.NewAboutIntroMetricHandler(aboutIntroMetricSvc)
+	aboutIntroPointHandler := handler.NewAboutIntroPointHandler(aboutIntroPointSvc)
+	homepageServicesDocHandler := handler.NewHomepageServicesDocumentHandler(homepageServicesDocSvc)
+	aboutIntroDocHandler := handler.NewAboutIntroDocumentHandler(aboutIntroDocSvc)
 
 	// API v1
 	api := r.Group("/api")
@@ -199,6 +219,74 @@ func Setup(
 			homepage.DELETE("/:id", bannerHandler.DeleteBanner)  // DELETE /api/homepage/banners/:id (only Admin)
 		}
 
+		// ── Homepage Reason Settings & Cards (Admin & Super Admin) ────────────
+		reasonSettings := api.Group("/homepage/reason-settings")
+		reasonSettings.Use(middleware.AuthMiddleware(authSvc))
+		reasonSettings.Use(middleware.AdminOrAbove())
+		{
+			reasonSettings.GET("", homepageReasonHandler.GetSetting)  // GET /api/homepage/reason-settings
+			reasonSettings.PUT("", homepageReasonHandler.SaveSetting) // PUT /api/homepage/reason-settings
+		}
+
+		reasons := api.Group("/homepage/reasons")
+		reasons.Use(middleware.AuthMiddleware(authSvc))
+		reasons.Use(middleware.AdminOrAbove())
+		{
+			reasons.GET("", homepageReasonHandler.GetAllReasons)          // GET    /api/homepage/reasons
+			reasons.POST("", homepageReasonHandler.CreateReason)         // POST   /api/homepage/reasons
+			reasons.GET("/:id", homepageReasonHandler.GetReasonByID)     // GET    /api/homepage/reasons/:id
+			reasons.PUT("/:id", homepageReasonHandler.UpdateReason)      // PUT    /api/homepage/reasons/:id
+			reasons.DELETE("/:id", homepageReasonHandler.DeleteReason)   // DELETE /api/homepage/reasons/:id
+		}
+
+		// ── Homepage Services Management (Kartu Layanan) (Admin & Super Admin) ─
+		servicesManagement := api.Group("/homepage/services")
+		servicesManagement.Use(middleware.AuthMiddleware(authSvc))
+		servicesManagement.Use(middleware.AdminOrAbove())
+		{
+			servicesManagement.GET("", homepageServicesDocHandler.GetDocumentAdmin) // GET /api/homepage/services
+			servicesManagement.PUT("", homepageServicesDocHandler.SaveDocument)     // PUT /api/homepage/services
+		}
+
+		// ── Homepage CTA Management (Admin & Super Admin) ─────────────────────
+		homeCTA := api.Group("/home/cta")
+		homeCTA.Use(middleware.AuthMiddleware(authSvc))
+		homeCTA.Use(middleware.AdminOrAbove())
+		{
+			homeCTA.GET("", homeCTAHandler.GetAllCTA)          // GET    /api/home/cta
+			homeCTA.POST("", homeCTAHandler.CreateCTA)        // POST   /api/home/cta
+			homeCTA.GET("/:id", homeCTAHandler.GetCTAByID)    // GET    /api/home/cta/:id
+			homeCTA.PUT("/:id", homeCTAHandler.UpdateCTA)     // PUT    /api/home/cta/:id
+			homeCTA.DELETE("/:id", homeCTAHandler.DeleteCTA)  // DELETE /api/home/cta/:id
+		}
+
+		// ── Homepage Partnership Management (Admin & Super Admin) ─────────────
+		homePartnership := api.Group("/home/partnership")
+		homePartnership.Use(middleware.AuthMiddleware(authSvc))
+		homePartnership.Use(middleware.AdminOrAbove())
+		{
+			// Settings
+			homePartnership.GET("/settings", partnershipSettingHandler.GetAll)          // GET    /api/home/partnership/settings
+			homePartnership.GET("/settings/:id", partnershipSettingHandler.GetByID)      // GET    /api/home/partnership/settings/:id
+			homePartnership.POST("/settings", partnershipSettingHandler.Create)         // POST   /api/home/partnership/settings
+			homePartnership.PUT("/settings/:id", partnershipSettingHandler.Update)      // PUT    /api/home/partnership/settings/:id
+			homePartnership.DELETE("/settings/:id", partnershipSettingHandler.Delete)   // DELETE /api/home/partnership/settings/:id
+
+			// Images
+			homePartnership.GET("/images", partnershipImageHandler.GetAll)              // GET    /api/home/partnership/images
+			homePartnership.GET("/images/:id", partnershipImageHandler.GetByID)          // GET    /api/home/partnership/images/:id
+			homePartnership.POST("/images", partnershipImageHandler.Create)             // POST   /api/home/partnership/images
+			homePartnership.PUT("/images/:id", partnershipImageHandler.Update)          // PUT    /api/home/partnership/images/:id
+			homePartnership.DELETE("/images/:id", partnershipImageHandler.Delete)       // DELETE /api/home/partnership/images/:id
+
+			// Services
+			homePartnership.GET("/services", partnershipServiceHandler.GetAll)          // GET    /api/home/partnership/services
+			homePartnership.GET("/services/:id", partnershipServiceHandler.GetByID)      // GET    /api/home/partnership/services/:id
+			homePartnership.POST("/services", partnershipServiceHandler.Create)         // POST   /api/home/partnership/services
+			homePartnership.PUT("/services/:id", partnershipServiceHandler.Update)      // PUT    /api/home/partnership/services/:id
+			homePartnership.DELETE("/services/:id", partnershipServiceHandler.Delete)   // DELETE /api/home/partnership/services/:id
+		}
+
 		// ── Testimonial Management (Admin & Super Admin) ──────────────────────
 		testimonials := api.Group("/testimonials")
 		testimonials.Use(middleware.AuthMiddleware(authSvc))
@@ -258,6 +346,40 @@ func Setup(
 			about.GET("/statistics/:id", aboutStatisticHandler.GetStatisticByID)    // GET    /api/about/statistics/:id
 			about.PUT("/statistics/:id", aboutStatisticHandler.UpdateStatistic)     // PUT    /api/about/statistics/:id
 			about.DELETE("/statistics/:id", aboutStatisticHandler.DeleteStatistic)  // DELETE /api/about/statistics/:id
+
+			// Hero/Perkenalan Tentang Kami (About Intro & Visi Misi)
+			aboutIntro := about.Group("/intro")
+			{
+				// Document Upsert (Admin UI Intro & Visi Misi)
+				aboutIntro.GET("", aboutIntroDocHandler.GetDocumentAdmin) // GET /api/about/intro
+				aboutIntro.PUT("", aboutIntroDocHandler.SaveDocument)     // PUT /api/about/intro
+
+				// Settings
+				aboutIntro.GET("/settings", aboutIntroSettingHandler.GetAll)          // GET    /api/about/intro/settings
+				aboutIntro.GET("/settings/:id", aboutIntroSettingHandler.GetByID)      // GET    /api/about/intro/settings/:id
+				aboutIntro.POST("/settings", aboutIntroSettingHandler.Create)         // POST   /api/about/intro/settings
+				aboutIntro.PUT("/settings/:id", aboutIntroSettingHandler.Update)      // PUT    /api/about/intro/settings/:id
+				aboutIntro.DELETE("/settings/:id", aboutIntroSettingHandler.Delete)   // DELETE /api/about/intro/settings/:id
+
+				// Metrics
+				aboutIntro.GET("/metrics", aboutIntroMetricHandler.GetAll)                                // GET    /api/about/intro/metrics
+				aboutIntro.GET("/metrics/:id", aboutIntroMetricHandler.GetByID)                            // GET    /api/about/intro/metrics/:id
+				aboutIntro.GET("/metrics/setting/:setting_id", aboutIntroMetricHandler.GetBySettingID)    // GET    /api/about/intro/metrics/setting/:setting_id
+				aboutIntro.GET("/metrics/setting/:setting_id/active", aboutIntroMetricHandler.GetActiveBySettingID) // GET /api/about/intro/metrics/setting/:setting_id/active
+				aboutIntro.POST("/metrics", aboutIntroMetricHandler.Create)                               // POST   /api/about/intro/metrics
+				aboutIntro.PUT("/metrics/:id", aboutIntroMetricHandler.Update)                            // PUT    /api/about/intro/metrics/:id
+				aboutIntro.DELETE("/metrics/:id", aboutIntroMetricHandler.Delete)                         // DELETE /api/about/intro/metrics/:id
+
+				// Points
+				aboutIntro.GET("/points", aboutIntroPointHandler.GetAll)                                      // GET    /api/about/intro/points
+				aboutIntro.GET("/points/:id", aboutIntroPointHandler.GetByID)                                  // GET    /api/about/intro/points/:id
+				aboutIntro.GET("/points/setting/:setting_id", aboutIntroPointHandler.GetBySettingID)          // GET    /api/about/intro/points/setting/:setting_id
+				aboutIntro.GET("/points/setting/:setting_id/:section_type", aboutIntroPointHandler.GetBySettingIDAndType) // GET /api/about/intro/points/setting/:setting_id/:section_type
+				aboutIntro.GET("/points/setting/:setting_id/active", aboutIntroPointHandler.GetActiveBySettingID)       // GET /api/about/intro/points/setting/:setting_id/active
+				aboutIntro.POST("/points", aboutIntroPointHandler.Create)                                     // POST   /api/about/intro/points
+				aboutIntro.PUT("/points/:id", aboutIntroPointHandler.Update)                                  // PUT    /api/about/intro/points/:id
+				aboutIntro.DELETE("/points/:id", aboutIntroPointHandler.Delete)                               // DELETE /api/about/intro/points/:id
+			}
 		}
 
 		// ── Page Hero Banners Management (Admin & Super Admin) ────────────────
@@ -294,9 +416,18 @@ func Setup(
 			// Homepage Banners & Heroes (alias)
 			public.GET("/homepage/banners", bannerHandler.GetPublicBanners) // GET /api/public/homepage/banners
 			public.GET("/homepage/heroes", bannerHandler.GetPublicBanners)  // GET /api/public/homepage/heroes (alias)
+			public.GET("/homepage/reasons", homepageReasonHandler.GetPublicReasons) // GET /api/public/homepage/reasons
+			public.GET("/homepage/services", homepageServicesDocHandler.GetDocumentPublic) // GET /api/public/homepage/services
+			public.GET("/home/cta", homeCTAHandler.GetPublicCTA) // GET /api/public/home/cta
+
+			// Homepage Partnership
+			public.GET("/home/partnership/settings", partnershipSettingHandler.GetActivePublic) // GET /api/public/home/partnership/settings
+			public.GET("/home/partnership/images", partnershipImageHandler.GetActivePublic)     // GET /api/public/home/partnership/images
+			public.GET("/home/partnership/services", partnershipServiceHandler.GetActivePublic) // GET /api/public/home/partnership/services
 
 			// About Us
 			public.GET("/about", aboutHandler.GetPublicAboutSetting)       // GET /api/public/about
+			public.GET("/about/intro", aboutIntroDocHandler.GetDocumentPublic) // GET /api/public/about/intro
 			public.GET("/about/team", aboutHandler.GetPublicTeamMembers)   // GET /api/public/about/team
 			public.GET("/about/video", aboutVideoHandler.GetPublicVideo)   // GET /api/public/about/video
 			public.GET("/about/faqs", aboutFAQHandler.GetPublicFAQs)       // GET /api/public/about/faqs

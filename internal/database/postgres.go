@@ -44,6 +44,15 @@ func Connect() {
 		&model.AboutVideoHighlight{},
 		&model.AboutStatistic{},
 		&model.PageBanner{},
+		&model.HomepageReasonSetting{},
+		&model.HomepageReason{},
+		&model.HomeCTA{},
+		&model.PartnershipSetting{},
+		&model.PartnershipImage{},
+		&model.PartnershipService{},
+		&model.AboutIntroSetting{},
+		&model.AboutIntroMetric{},
+		&model.AboutIntroPoint{},
 	); err != nil {
 		log.Fatalf("[database] AutoMigrate failed: %v", err)
 	}

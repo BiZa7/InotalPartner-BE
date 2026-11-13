@@ -72,6 +72,44 @@ func main() {
 	pageBannerRepo := repository.NewPageBannerRepository(database.DB)
 	pageBannerSvc := service.NewPageBannerService(pageBannerRepo)
 
+	homepageReasonRepo := repository.NewHomepageReasonRepository(database.DB)
+	homepageReasonSvc := service.NewHomepageReasonService(homepageReasonRepo)
+
+	homeCTARepo := repository.NewHomeCTARepository(database.DB)
+	homeCTASvc := service.NewHomeCTAService(homeCTARepo)
+
+	partnershipSettingRepo := repository.NewPartnershipSettingRepository(database.DB)
+	partnershipSettingSvc := service.NewPartnershipSettingService(partnershipSettingRepo)
+
+	partnershipImageRepo := repository.NewPartnershipImageRepository(database.DB)
+	partnershipImageSvc := service.NewPartnershipImageService(partnershipImageRepo)
+
+	partnershipServiceRepo := repository.NewPartnershipServiceRepository(database.DB)
+	partnershipServiceSvc := service.NewPartnershipServiceService(partnershipServiceRepo)
+
+	aboutIntroSettingRepo := repository.NewAboutIntroSettingRepository(database.DB)
+	aboutIntroSettingSvc := service.NewAboutIntroSettingService(aboutIntroSettingRepo)
+
+	aboutIntroMetricRepo := repository.NewAboutIntroMetricRepository(database.DB)
+	aboutIntroMetricSvc := service.NewAboutIntroMetricService(aboutIntroMetricRepo, aboutIntroSettingRepo)
+
+	aboutIntroPointRepo := repository.NewAboutIntroPointRepository(database.DB)
+	aboutIntroPointSvc := service.NewAboutIntroPointService(aboutIntroPointRepo, aboutIntroSettingRepo)
+
+	homepageServicesDocSvc := service.NewHomepageServicesUpsertService(
+		database.DB,
+		partnershipSettingRepo,
+		partnershipImageRepo,
+		partnershipServiceRepo,
+	)
+
+	aboutIntroDocSvc := service.NewAboutIntroUpsertService(
+		database.DB,
+		aboutIntroSettingRepo,
+		aboutIntroMetricRepo,
+		aboutIntroPointRepo,
+	)
+
 	// 4. Setup Gin
 	if config.App.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -97,6 +135,16 @@ func main() {
 		aboutVideoHighlightSvc,
 		aboutStatisticSvc,
 		pageBannerSvc,
+		homepageReasonSvc,
+		homeCTASvc,
+		partnershipSettingSvc,
+		partnershipImageSvc,
+		partnershipServiceSvc,
+		aboutIntroSettingSvc,
+		aboutIntroMetricSvc,
+		aboutIntroPointSvc,
+		homepageServicesDocSvc,
+		aboutIntroDocSvc,
 	)
 
 	// 6. Jalankan server
